@@ -32,6 +32,9 @@ const elements = {
     matchInput: document.getElementById('matchInput'),
     generateKeywordsBtn: document.getElementById('generateKeywordsBtn'),
 
+    // Domain management
+    clearAllDomainsBtn: document.getElementById('clearAllDomainsBtn'),
+
     keywordsInput: document.getElementById('keywordsInput'),
     startScrapingBtn: document.getElementById('startScrapingBtn'),
     stopScrapingBtn: document.getElementById('stopScrapingBtn'),
@@ -44,6 +47,8 @@ const elements = {
 
     resultsContainer: document.getElementById('resultsContainer'),
     resultsCount: document.getElementById('resultsCount'),
+    selectAllResults: document.getElementById('selectAllResults'),
+    copySelectedBtn: document.getElementById('copySelectedBtn'),
     exportCsvBtn: document.getElementById('exportCsvBtn'),
     exportExcelBtn: document.getElementById('exportExcelBtn'),
     syncSheetsBtn: document.getElementById('syncSheetsBtn'),
@@ -94,6 +99,13 @@ function setupEventListeners() {
 
     // Match input handler
     elements.generateKeywordsBtn.addEventListener('click', generateKeywordsFromMatches);
+
+    // Domain management
+    elements.clearAllDomainsBtn.addEventListener('click', clearAllDomains);
+
+    // Results selection
+    elements.selectAllResults.addEventListener('change', toggleSelectAll);
+    elements.copySelectedBtn.addEventListener('click', copySelectedUrls);
 
     // Scraping Controls
     elements.startScrapingBtn.addEventListener('click', startScraping);
@@ -331,6 +343,76 @@ function generateKeywordsFromMatches() {
     elements.keywordsInput.value = keywordsString;
 
     showNotification(`Generated ${allKeywords.size} keywords from ${matches.length} match(es)`, 'success');
+}
+
+
+// Clear all domains
+async function clearAllDomains() {
+    if (!confirm('Are you sure you want to remove all domains?')) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/domains', {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            state.domains = [];
+            renderDomainList();
+            showNotification('All domains cleared', 'success');
+        } else {
+            throw new Error('Failed to clear domains');
+        }
+    } catch (error) {
+        console.error('Error clearing domains:', error);
+        showNotification('Failed to clear domains', 'error');
+    }
+}
+
+
+// Toggle select all results
+function toggleSelectAll() {
+    const checkboxes = document.querySelectorAll('.result-checkbox');
+    const isChecked = elements.selectAllResults.checked;
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+    });
+
+    updateCopyButtonState();
+}
+
+
+// Copy selected M3U8 URLs to clipboard
+async function copySelectedUrls() {
+    const checkboxes = document.querySelectorAll('.result-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        showNotification('No results selected', 'error');
+        return;
+    }
+
+    const selectedUrls = [];
+    checkboxes.forEach(checkbox => {
+        const urls = checkbox.dataset.urls.split(',');
+        selectedUrls.push(...urls);
+    });
+
+    try {
+        await navigator.clipboard.writeText(selectedUrls.join('\n'));
+        showNotification(`Copied ${selectedUrls.length} URL(s) to clipboard`, 'success');
+    } catch (error) {
+        console.error('Error copying to clipboard:', error);
+        showNotification('Failed to copy URLs', 'error');
+    }
+}
+
+
+// Update copy button state based on selection
+function updateCopyButtonState() {
+    const checkboxes = document.querySelectorAll('.result-checkbox:checked');
+    elements.copySelectedBtn.disabled = checkboxes.length === 0;
 }
 
 
@@ -588,11 +670,14 @@ function renderResults() {
         <small>Start scraping to see results here</small>
       </div>
     `;
+        elements.selectAllResults.checked = false;
+        elements.copySelectedBtn.disabled = true;
     } else {
         elements.resultsContainer.innerHTML = `
       <table class="results-table">
         <thead>
           <tr>
+            <th style="width: 40px;"></th>
             <th>Scraped URL</th>
             <th>Source URLs (M3U8)</th>
             <th>Domain Index URL</th>
@@ -601,8 +686,18 @@ function renderResults() {
           </tr>
         </thead>
         <tbody>
-          ${state.results.map(result => `
+          ${state.results.map((result, index) => `
             <tr>
+              <td>
+                <input 
+                  type="checkbox" 
+                  class="result-checkbox" 
+                  data-urls="${result.sourceUrls.join(',')}"
+                  data-index="${index}"
+                  onchange="updateCopyButtonState()"
+                  style="cursor: pointer;"
+                >
+              </td>
               <td><a href="${escapeHtml(result.scrapedUrl)}" target="_blank" class="m3u8-link">${escapeHtml(result.scrapedUrl)}</a></td>
               <td>
                 <div class="m3u8-list">
@@ -630,6 +725,7 @@ function renderResults() {
     elements.exportCsvBtn.disabled = state.results.length === 0;
     elements.exportExcelBtn.disabled = state.results.length === 0;
     elements.syncSheetsBtn.disabled = state.results.length === 0;
+    updateCopyButtonState();
 }
 
 // Export Functions

@@ -70,6 +70,12 @@
                             </svg>
                             Load from Google Sheets
                         </button>
+                        <button class="btn btn-danger btn-small" id="clearAllDomainsBtn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M5 3l1-1h4l1 1h3v2H2V3h3zM3 6h10l-1 8H4L3 6z" />
+                            </svg>
+                            Clear All
+                        </button>
                     </div>
                 </div>
 
@@ -193,6 +199,18 @@
                         Scraping Results
                     </h2>
                     <div class="export-buttons">
+                        <label
+                            style="display: flex; align-items: center; gap: 6px; margin-right: 12px; cursor: pointer;">
+                            <input type="checkbox" id="selectAllResults" style="cursor: pointer;">
+                            <span style="font-size: 14px;">Select All</span>
+                        </label>
+                        <button class="btn btn-primary" id="copySelectedBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path
+                                    d="M4 2h8a2 2 0 012 2v8M2 6h8a2 2 0 012 2v6a2 2 0 01-2 2H2a2 2 0 01-2-2V8a2 2 0 012-2z" />
+                            </svg>
+                            Copy Selected URLs
+                        </button>
                         <button class="btn btn-secondary" id="exportCsvBtn" disabled>
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                 <path d="M8 12l-4-4h2.5V2h3v6H12l-4 4zM2 14h12v2H2v-2z" />
