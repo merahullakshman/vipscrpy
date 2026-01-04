@@ -380,165 +380,23 @@ class ScraperCore {
    * NOW WITH STRICT KEYWORD FILTERING
    */
   async findTeamTagPagesFromMatchPage(matchPageUrl, teamNames, keywords = []) {
-    // Find links that might be team tag pages
-    $('a[href]').each((i, elem) => {
-      const href = $(elem).attr('href');
-      const linkText = $(elem).text().trim().toLowerCase();
-      const title = $(elem).attr('title') || '';
+    const teamTagPages = [];
 
-      // KEYWORD FILTERING: If keywords provided, check if link matches
-      if (keywords.length > 0) {
-        const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
-        const hasKeywordMatch = keywords.some(keyword => {
-          const keywordLower = keyword.toLowerCase().trim();
-          return combinedText.includes(keywordLower);
-        });
-
-        // Skip this link if no keyword match
-        if (!hasKeywordMatch) {
-          return; // Continue to next link
-        }
-      }
-
-      // Check if this looks like a team tag page
-      const isTeamTagPage = teamNames.some(team => {
-        const teamLower = team.toLowerCase();
-        return linkText.includes(teamLower) || href.toLowerCase().includes(teamLower);
-      });
-
-      if (isTeamTagPage && href) {
-        try {
-          const fullUrl = href.startsWith('http') ? href : new URL(href, matchPageUrl).href;
-          console.log(`✓ Found team tag link: ${fullUrl}`);
-        }
-          } catch (e) {
-        // Invalid URL
-      }
-    }
-      });
-
-      return teamPages;
-
-    } catch (error) {
-  console.error('Error extracting team tag links:', error.message);
-  return teamPages;
-}
-  }
-
-  /**
-   * Find team-specific tag pages for discovered teams
-   * Returns URLs like /soccer/team-name-live-stream
-   * Enhanced to handle strikeout.im patterns and numbered variants
-   */
-  async findTeamTagPages(domain, teamNames, sport = 'soccer') {
-  const teamPages = [];
-
-  if (!teamNames || teamNames.length === 0) {
-    return teamPages;
-  }
-
-  console.log(`Looking for team tag pages for: ${teamNames.join(', ')}`);
-
-  // Common URL patterns for team-specific pages
-  const patterns = [
-    // Standard patterns
-    `/${sport}/{team}-live-stream`,
-    `/${sport}/{team}-stream`,
-    `/${sport}/{team}-live`,
-    `/streams/{team}`,
-    `/{sport}/{team}`,
-    `/{team}-live-stream`,
-    `/{team}-stream`,
-
-    // Strikeout.im specific patterns
-    `/${sport}/stream-{team}-live`,  // /serie-a/stream-lazio-live
-    `/${sport}/1/{team}-stream`,      // /serie-a/1/lazio-stream
-    `/${sport}/2/{team}-stream`,      // /serie-a/2/lazio-stream
-    `/${sport}/3/{team}-stream`,
-    `/${sport}/4/{team}-stream`,
-    `/${sport}/5/{team}-stream`,
-  ];
-
-  for (const teamName of teamNames) {
-    for (const pattern of patterns) {
-      const teamUrl = pattern.replace('{team}', teamName).replace('{sport}', sport);
-      const fullUrl = `${domain}${teamUrl}`;
-
-      try {
-        // Quick check if page exists
-        const config = this.getAxiosConfig(fullUrl);
-        const response = await axios.head(fullUrl, {
-          ...config,
-          timeout: 5000,
-          validateStatus: (status) => status < 500 // Accept redirects and 404s
-        });
-
-        if (response.status === 200) {
-          teamPages.push(fullUrl);
-          console.log(`✓ Found team page: ${teamUrl}`);
-
-          // For strikeout.im, if we found a numbered variant, don't break
-          // Continue to find all numbered variants (1/, 2/, 3/, etc.)
-          if (!pattern.match(/\/\d+\//)) {
-            break; // For non-numbered patterns, move to next team
-          }
-        }
-      } catch (error) {
-        // Page doesn't exist or error, try next pattern
-        continue;
-      }
-
-      await this.delay(200); // Small delay between checks
-    }
-  }
-
-  return teamPages;
-}
-
-  /**
-   * Find all event/match links on a domain (when no keywords provided)
-   * Discovers all streaming event pages across common sport categories
-   * NOW WITH KEYWORD FILTERING
-   */
-  async findAllEventLinks(domain, keywords = []) {
-  const eventLinks = new Set();
-
-  console.log(`Discovering event links on ${domain}${keywords.length > 0 ? ' with keyword filtering' : ''}...`);
-
-  try {
-    // Common sport categories to check
-    const sports = ['soccer', 'football', 'basketball', 'baseball', 'hockey', 'mma', 'boxing', 'tennis', 'f1', 'nfl', 'nba', 'nhl'];
-    const pagesToCheck = [
-      domain, // Homepage
-      `${domain}/live`,
-      `${domain}/streams`,
-      `${domain}/schedule`,
-      `${domain}/events`,
-    ];
-
-    // Add sport-specific pages
-    sports.forEach(sport => {
-      pagesToCheck.push(`${domain}/${sport}`);
-      pagesToCheck.push(`${domain}/${sport}-streams`);
-      pagesToCheck.push(`${domain}/streams/${sport}`);
-    });
-
-    // Check each page for event links
-    for (const pageUrl of pagesToCheck) {
-      const html = await this.fetchPage(pageUrl);
-      if (!html) continue;
+    try {
+      const html = await this.fetchPage(matchPageUrl);
+      if (!html) return teamTagPages;
 
       const $ = cheerio.load(html);
 
-      // Find all links that look like events/matches
+      // Find links that might be team tag pages
       $('a[href]').each((i, elem) => {
         const href = $(elem).attr('href');
-        const linkText = $(elem).text().trim();
+        const linkText = $(elem).text().trim().toLowerCase();
         const title = $(elem).attr('title') || '';
-        const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
 
         // KEYWORD FILTERING: If keywords provided, check if link matches
         if (keywords.length > 0) {
+          const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
           const hasKeywordMatch = keywords.some(keyword => {
             const keywordLower = keyword.toLowerCase().trim();
             return combinedText.includes(keywordLower);
@@ -550,28 +408,18 @@ class ScraperCore {
           }
         }
 
-        // Check if this looks like an event/match link
-        const isEventLink =
-          href.includes('stream') ||
-          href.includes('watch') ||
-          href.includes('live') ||
-          href.includes('event') ||
-          combinedText.includes('vs') ||
-          combinedText.includes('v ') ||
-          combinedText.match(/\d{1,2}:\d{2}/) || // Time pattern
-          combinedText.match(/\d{2}\/\d{2}/) || // Date pattern
-          (href.includes('-') && (href.includes('stream') || href.includes('live')));
+        // Check if this looks like a team tag page
+        const isTeamTagPage = teamNames.some(team => {
+          const teamLower = team.toLowerCase();
+          return linkText.includes(teamLower) || href.toLowerCase().includes(teamLower);
+        });
 
-        if (isEventLink && href) {
+        if (isTeamTagPage && href) {
           try {
-            const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
-
-            // Only add if from same domain and not a category page
-            if (fullUrl.startsWith(domain) && !this.isCategoryPage(fullUrl)) {
-              eventLinks.add(fullUrl);
-              if (keywords.length > 0) {
-                console.log(`✓ KEYWORD MATCH: ${linkText.substring(0, 60)}...`);
-              }
+            const fullUrl = href.startsWith('http') ? href : new URL(href, matchPageUrl).href;
+            if (!teamTagPages.includes(fullUrl)) {
+              console.log(`  ✓ Found team tag page (keyword-filtered): ${linkText || fullUrl.substring(0, 60)}`);
+              teamTagPages.push(fullUrl);
             }
           } catch (e) {
             // Invalid URL
@@ -579,582 +427,743 @@ class ScraperCore {
         }
       });
 
-      await this.delay(500); // Small delay between pages
+      return teamTagPages;
 
-      // Limit to avoid too many requests
-      if (eventLinks.size > 50) {
-        console.log(`Found ${eventLinks.size} event links, stopping discovery...`);
-        break;
+    } catch (error) {
+      console.error('Error finding team tag pages:', error.message);
+      return teamTagPages;
+    }
+  }
+  /**
+   * Find team-specific tag pages for discovered teams
+   * Returns URLs like /soccer/team-name-live-stream
+   * Enhanced to handle strikeout.im patterns and numbered variants
+   */
+  async findTeamTagPages(domain, teamNames, sport = 'soccer') {
+    const teamPages = [];
+
+    if (!teamNames || teamNames.length === 0) {
+      return teamPages;
+    }
+
+    console.log(`Looking for team tag pages for: ${teamNames.join(', ')}`);
+
+    // Common URL patterns for team-specific pages
+    const patterns = [
+      // Standard patterns
+      `/${sport}/{team}-live-stream`,
+      `/${sport}/{team}-stream`,
+      `/${sport}/{team}-live`,
+      `/streams/{team}`,
+      `/{sport}/{team}`,
+      `/{team}-live-stream`,
+      `/{team}-stream`,
+
+      // Strikeout.im specific patterns
+      `/${sport}/stream-{team}-live`,  // /serie-a/stream-lazio-live
+      `/${sport}/1/{team}-stream`,      // /serie-a/1/lazio-stream
+      `/${sport}/2/{team}-stream`,      // /serie-a/2/lazio-stream
+      `/${sport}/3/{team}-stream`,
+      `/${sport}/4/{team}-stream`,
+      `/${sport}/5/{team}-stream`,
+    ];
+
+    for (const teamName of teamNames) {
+      for (const pattern of patterns) {
+        const teamUrl = pattern.replace('{team}', teamName).replace('{sport}', sport);
+        const fullUrl = `${domain}${teamUrl}`;
+
+        try {
+          // Quick check if page exists
+          const config = this.getAxiosConfig(fullUrl);
+          const response = await axios.head(fullUrl, {
+            ...config,
+            timeout: 5000,
+            validateStatus: (status) => status < 500 // Accept redirects and 404s
+          });
+
+          if (response.status === 200) {
+            teamPages.push(fullUrl);
+            console.log(`✓ Found team page: ${teamUrl}`);
+
+            // For strikeout.im, if we found a numbered variant, don't break
+            // Continue to find all numbered variants (1/, 2/, 3/, etc.)
+            if (!pattern.match(/\/\d+\//)) {
+              break; // For non-numbered patterns, move to next team
+            }
+          }
+        } catch (error) {
+          // Page doesn't exist or error, try next pattern
+          continue;
+        }
+
+        await this.delay(200); // Small delay between checks
       }
     }
 
-    console.log(`✓ Discovered ${eventLinks.size} event links${keywords.length > 0 ? ' (keyword-filtered)' : ''}`);
-    return Array.from(eventLinks);
-
-  } catch (error) {
-    console.error('Error finding all event links:', error.message);
-    return Array.from(eventLinks);
+    return teamPages;
   }
-}
 
-/**
- * Check if URL is a category/schedule page rather than an event page
- */
-isCategoryPage(url) {
-  const categoryPatterns = [
-    /\/soccer\/?$/,
-    /\/football\/?$/,
-    /\/basketball\/?$/,
-    /\/streams\/?$/,
-    /\/live\/?$/,
-    /\/schedule\/?$/,
-    /\/events\/?$/,
-    /\/(soccer|football|basketball)-streams\/?$/
-  ];
+  /**
+   * Find all event/match links on a domain (when no keywords provided)
+   * Discovers all streaming event pages across common sport categories
+   * NOW WITH KEYWORD FILTERING
+   */
+  async findAllEventLinks(domain, keywords = []) {
+    const eventLinks = new Set();
 
-  return categoryPatterns.some(pattern => pattern.test(url));
-}
+    console.log(`Discovering event links on ${domain}${keywords.length > 0 ? ' with keyword filtering' : ''}...`);
+
+    try {
+      // Common sport categories to check
+      const sports = ['soccer', 'football', 'basketball', 'baseball', 'hockey', 'mma', 'boxing', 'tennis', 'f1', 'nfl', 'nba', 'nhl'];
+      const pagesToCheck = [
+        domain, // Homepage
+        `${domain}/live`,
+        `${domain}/streams`,
+        `${domain}/schedule`,
+        `${domain}/events`,
+      ];
+
+      // Add sport-specific pages
+      sports.forEach(sport => {
+        pagesToCheck.push(`${domain}/${sport}`);
+        pagesToCheck.push(`${domain}/${sport}-streams`);
+        pagesToCheck.push(`${domain}/streams/${sport}`);
+      });
+
+      // Check each page for event links
+      for (const pageUrl of pagesToCheck) {
+        const html = await this.fetchPage(pageUrl);
+        if (!html) continue;
+
+        const $ = cheerio.load(html);
+
+        // Find all links that look like events/matches
+        $('a[href]').each((i, elem) => {
+          const href = $(elem).attr('href');
+          const linkText = $(elem).text().trim();
+          const title = $(elem).attr('title') || '';
+          const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
+
+          // KEYWORD FILTERING: If keywords provided, check if link matches
+          if (keywords.length > 0) {
+            const hasKeywordMatch = keywords.some(keyword => {
+              const keywordLower = keyword.toLowerCase().trim();
+              return combinedText.includes(keywordLower);
+            });
+
+            // Skip this link if no keyword match
+            if (!hasKeywordMatch) {
+              return; // Continue to next link
+            }
+          }
+
+          // Check if this looks like an event/match link
+          const isEventLink =
+            href.includes('stream') ||
+            href.includes('watch') ||
+            href.includes('live') ||
+            href.includes('event') ||
+            combinedText.includes('vs') ||
+            combinedText.includes('v ') ||
+            combinedText.match(/\d{1,2}:\d{2}/) || // Time pattern
+            combinedText.match(/\d{2}\/\d{2}/) || // Date pattern
+            (href.includes('-') && (href.includes('stream') || href.includes('live')));
+
+          if (isEventLink && href) {
+            try {
+              const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
+
+              // Only add if from same domain and not a category page
+              if (fullUrl.startsWith(domain) && !this.isCategoryPage(fullUrl)) {
+                eventLinks.add(fullUrl);
+                if (keywords.length > 0) {
+                  console.log(`✓ KEYWORD MATCH: ${linkText.substring(0, 60)}...`);
+                }
+              }
+            } catch (e) {
+              // Invalid URL
+            }
+          }
+        });
+
+        await this.delay(500); // Small delay between pages
+
+        // Limit to avoid too many requests
+        if (eventLinks.size > 50) {
+          console.log(`Found ${eventLinks.size} event links, stopping discovery...`);
+          break;
+        }
+      }
+
+      console.log(`✓ Discovered ${eventLinks.size} event links${keywords.length > 0 ? ' (keyword-filtered)' : ''}`);
+      return Array.from(eventLinks);
+
+    } catch (error) {
+      console.error('Error finding all event links:', error.message);
+      return Array.from(eventLinks);
+    }
+  }
+
+  /**
+   * Check if URL is a category/schedule page rather than an event page
+   */
+  isCategoryPage(url) {
+    const categoryPatterns = [
+      /\/soccer\/?$/,
+      /\/football\/?$/,
+      /\/basketball\/?$/,
+      /\/streams\/?$/,
+      /\/live\/?$/,
+      /\/schedule\/?$/,
+      /\/events\/?$/,
+      /\/(soccer|football|basketball)-streams\/?$/
+    ];
+
+    return categoryPatterns.some(pattern => pattern.test(url));
+  }
 
   /**
    * Search domain for pages matching keywords
    * Enhanced with adaptive search URL detection and strict keyword filtering
    */
   async findPagesWithKeywords(domain, keywords) {
-  const foundPages = [];
+    const foundPages = [];
 
-  if (keywords.length === 0) {
-    // If no keywords, discover all event links
-    return await this.findAllEventLinks(domain);
-  }
-
-  // WITH KEYWORDS: Pass them to findAllEventLinks for filtering
-  return await this.findAllEventLinks(domain, keywords);
-
-  try {
-    console.log(`Searching ${domain} for keywords: ${keywords.join(', ')}`);
-
-    // Step 1: Try to detect the site's search pattern
-    const searchPattern = await this.detectSearchPattern(domain);
-
-    const searchUrls = [];
-
-    if (searchPattern) {
-      // Use detected search pattern
-      const searchQuery = keywords.join(' ');
-      if (searchPattern.method === 'get') {
-        searchUrls.push(`${searchPattern.url}?${searchPattern.param}=${encodeURIComponent(searchQuery)}`);
-      }
-      console.log(`Using detected search pattern: ${searchPattern.url}?${searchPattern.param}=...`);
+    if (keywords.length === 0) {
+      // If no keywords, discover all event links
+      return await this.findAllEventLinks(domain);
     }
 
-    // Step 2: Try common search URL patterns
-    const searchQuery = keywords.join('+');
-    searchUrls.push(
-      `${domain}/search?q=${searchQuery}`,
-      `${domain}/?s=${searchQuery}`,
-      `${domain}/search?query=${searchQuery}`,
-      `${domain}/search/${searchQuery}`,
-      `${domain}/?search=${searchQuery}`
-    );
+    // WITH KEYWORDS: Pass them to findAllEventLinks for filtering
+    return await this.findAllEventLinks(domain, keywords);
 
-    // Step 3: Try sport-specific pages if keywords match sports
-    const sports = ['soccer', 'football', 'basketball', 'baseball', 'hockey', 'mma', 'boxing', 'tennis', 'f1', 'formula'];
-    keywords.forEach(keyword => {
-      const lowerKeyword = keyword.toLowerCase();
-      sports.forEach(sport => {
-        if (lowerKeyword.includes(sport)) {
-          searchUrls.push(`${domain}/${sport}`);
-          searchUrls.push(`${domain}/${sport}-streams`);
-          searchUrls.push(`${domain}/streams/${sport}`);
+    try {
+      console.log(`Searching ${domain} for keywords: ${keywords.join(', ')}`);
+
+      // Step 1: Try to detect the site's search pattern
+      const searchPattern = await this.detectSearchPattern(domain);
+
+      const searchUrls = [];
+
+      if (searchPattern) {
+        // Use detected search pattern
+        const searchQuery = keywords.join(' ');
+        if (searchPattern.method === 'get') {
+          searchUrls.push(`${searchPattern.url}?${searchPattern.param}=${encodeURIComponent(searchQuery)}`);
         }
-      });
-    });
+        console.log(`Using detected search pattern: ${searchPattern.url}?${searchPattern.param}=...`);
+      }
 
-    // Step 4: Try homepage as fallback
-    searchUrls.push(domain);
+      // Step 2: Try common search URL patterns
+      const searchQuery = keywords.join('+');
+      searchUrls.push(
+        `${domain}/search?q=${searchQuery}`,
+        `${domain}/?s=${searchQuery}`,
+        `${domain}/search?query=${searchQuery}`,
+        `${domain}/search/${searchQuery}`,
+        `${domain}/?search=${searchQuery}`
+      );
 
-    // Step 5: Search each URL and collect matching links
-    for (const searchUrl of searchUrls) {
-      const html = await this.fetchPage(searchUrl);
-      if (!html) continue;
-
-      const $ = cheerio.load(html);
-
-      // Find all links on the page
-      const links = new Set();
-
-      $('a[href]').each((i, elem) => {
-        const href = $(elem).attr('href');
-        const linkText = $(elem).text().trim();
-        const title = $(elem).attr('title') || '';
-
-        // Combine text sources for matching
-        const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
-
-        // STRICT: Match if ANY keyword is present (not all)
-        const hasKeywordMatch = keywords.some(keyword => {
-          const keywordLower = keyword.toLowerCase().trim();
-          return combinedText.includes(keywordLower);
-        });
-
-        // Only add if at least one keyword matches
-        if (hasKeywordMatch && href) {
-          try {
-            const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
-
-            // Only add if it's from the same domain
-            if (fullUrl.startsWith(domain)) {
-              links.add(fullUrl);
-              console.log(`✓ MATCH: ${linkText.substring(0, 60)}... [${href.substring(0, 80)}]`);
-            }
-          } catch (e) {
-            // Invalid URL, skip
+      // Step 3: Try sport-specific pages if keywords match sports
+      const sports = ['soccer', 'football', 'basketball', 'baseball', 'hockey', 'mma', 'boxing', 'tennis', 'f1', 'formula'];
+      keywords.forEach(keyword => {
+        const lowerKeyword = keyword.toLowerCase();
+        sports.forEach(sport => {
+          if (lowerKeyword.includes(sport)) {
+            searchUrls.push(`${domain}/${sport}`);
+            searchUrls.push(`${domain}/${sport}-streams`);
+            searchUrls.push(`${domain}/streams/${sport}`);
           }
-        }
+        });
       });
 
-      foundPages.push(...Array.from(links));
+      // Step 4: Try homepage as fallback
+      searchUrls.push(domain);
 
-      // If we found matches, stop searching other URLs
-      if (foundPages.length > 0) {
-        console.log(`Found ${foundPages.length} keyword-matching pages`);
-        break;
-      }
+      // Step 5: Search each URL and collect matching links
+      for (const searchUrl of searchUrls) {
+        const html = await this.fetchPage(searchUrl);
+        if (!html) continue;
 
-      await this.delay(this.requestDelay);
-    }
-
-    // If still no results, try a more lenient search on homepage
-    if (foundPages.length === 0) {
-      console.log(`No strict matches found, trying lenient search on homepage...`);
-      const html = await this.fetchPage(domain);
-      if (html) {
         const $ = cheerio.load(html);
 
-        // Look for any streaming-related links
-        $('a[href*="stream"], a[href*="watch"], a[href*="live"]').each((i, elem) => {
-          const href = $(elem).attr('href');
-          const linkText = $(elem).text().trim();
+        // Find all links on the page
+        const links = new Set();
 
-          if (this.matchesKeywords(linkText, keywords) && href) {
-            try {
-              const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
-              if (fullUrl.startsWith(domain)) {
-                foundPages.push(fullUrl);
-              }
-            } catch (e) {
-              // Invalid URL
-            }
-          }
-        });
-      }
-    }
-
-    // STEP 6: For schedule/category pages, collect actual event links from within them
-    if (foundPages.length > 0) {
-      console.log(`Collecting event links from ${foundPages.length} schedule pages...`);
-      const eventPages = [];
-
-      // Check first few pages to see if they're schedule/category pages
-      for (const pageUrl of foundPages.slice(0, 5)) {
-        // Skip if URL looks like an actual event (has date, team names, vs, etc.)
-        const urlLower = pageUrl.toLowerCase();
-        if (urlLower.match(/\d{4}-\d{2}-\d{2}|vs-|\d+pm|\d+am|live-/)) {
-          // This looks like an actual event page, keep it
-          eventPages.push(pageUrl);
-          continue;
-        }
-
-        // This might be a schedule/category page, fetch it to find event links
-        console.log(`Checking for events in: ${pageUrl.substring(domain.length)}`);
-        const pageHtml = await this.fetchPage(pageUrl);
-        if (!pageHtml) continue;
-
-        const $ = cheerio.load(pageHtml);
-
-        // Look for event links within this page
         $('a[href]').each((i, elem) => {
           const href = $(elem).attr('href');
           const linkText = $(elem).text().trim();
           const title = $(elem).attr('title') || '';
-          const combinedText = `${linkText} ${title}`;
 
-          // Check if this is an event link
-          const isEventLink =
-            href.includes('watch') ||
-            href.includes('stream') ||
-            href.includes('live') ||
-            href.includes('event') ||
-            combinedText.toLowerCase().includes('vs') ||
-            combinedText.toLowerCase().match(/\d{1,2}:\d{2}|pm|am/);
+          // Combine text sources for matching
+          const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
 
-          if (isEventLink && href) {
+          // STRICT: Match if ANY keyword is present (not all)
+          const hasKeywordMatch = keywords.some(keyword => {
+            const keywordLower = keyword.toLowerCase().trim();
+            return combinedText.includes(keywordLower);
+          });
+
+          // Only add if at least one keyword matches
+          if (hasKeywordMatch && href) {
             try {
               const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
 
-              // Only add if from same domain and matches keywords
-              if (fullUrl.startsWith(domain) && this.matchesKeywords(combinedText, keywords)) {
-                eventPages.push(fullUrl);
-                console.log(`  ✓ Found event: ${linkText.substring(0, 60)}...`);
+              // Only add if it's from the same domain
+              if (fullUrl.startsWith(domain)) {
+                links.add(fullUrl);
+                console.log(`✓ MATCH: ${linkText.substring(0, 60)}... [${href.substring(0, 80)}]`);
               }
             } catch (e) {
-              // Invalid URL
+              // Invalid URL, skip
             }
           }
         });
 
-        await this.delay(500); // Small delay between schedule page checks
+        foundPages.push(...Array.from(links));
+
+        // If we found matches, stop searching other URLs
+        if (foundPages.length > 0) {
+          console.log(`Found ${foundPages.length} keyword-matching pages`);
+          break;
+        }
+
+        await this.delay(this.requestDelay);
       }
 
-      // If we found event pages, use those instead of schedule pages
-      if (eventPages.length > 0) {
-        console.log(`Collected ${eventPages.length} event pages from schedule pages`);
-        foundPages = [...new Set([...foundPages, ...eventPages])]; // Combine both
+      // If still no results, try a more lenient search on homepage
+      if (foundPages.length === 0) {
+        console.log(`No strict matches found, trying lenient search on homepage...`);
+        const html = await this.fetchPage(domain);
+        if (html) {
+          const $ = cheerio.load(html);
+
+          // Look for any streaming-related links
+          $('a[href*="stream"], a[href*="watch"], a[href*="live"]').each((i, elem) => {
+            const href = $(elem).attr('href');
+            const linkText = $(elem).text().trim();
+
+            if (this.matchesKeywords(linkText, keywords) && href) {
+              try {
+                const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
+                if (fullUrl.startsWith(domain)) {
+                  foundPages.push(fullUrl);
+                }
+              } catch (e) {
+                // Invalid URL
+              }
+            }
+          });
+        }
       }
+
+      // STEP 6: For schedule/category pages, collect actual event links from within them
+      if (foundPages.length > 0) {
+        console.log(`Collecting event links from ${foundPages.length} schedule pages...`);
+        const eventPages = [];
+
+        // Check first few pages to see if they're schedule/category pages
+        for (const pageUrl of foundPages.slice(0, 5)) {
+          // Skip if URL looks like an actual event (has date, team names, vs, etc.)
+          const urlLower = pageUrl.toLowerCase();
+          if (urlLower.match(/\d{4}-\d{2}-\d{2}|vs-|\d+pm|\d+am|live-/)) {
+            // This looks like an actual event page, keep it
+            eventPages.push(pageUrl);
+            continue;
+          }
+
+          // This might be a schedule/category page, fetch it to find event links
+          console.log(`Checking for events in: ${pageUrl.substring(domain.length)}`);
+          const pageHtml = await this.fetchPage(pageUrl);
+          if (!pageHtml) continue;
+
+          const $ = cheerio.load(pageHtml);
+
+          // Look for event links within this page
+          $('a[href]').each((i, elem) => {
+            const href = $(elem).attr('href');
+            const linkText = $(elem).text().trim();
+            const title = $(elem).attr('title') || '';
+            const combinedText = `${linkText} ${title}`;
+
+            // Check if this is an event link
+            const isEventLink =
+              href.includes('watch') ||
+              href.includes('stream') ||
+              href.includes('live') ||
+              href.includes('event') ||
+              combinedText.toLowerCase().includes('vs') ||
+              combinedText.toLowerCase().match(/\d{1,2}:\d{2}|pm|am/);
+
+            if (isEventLink && href) {
+              try {
+                const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
+
+                // Only add if from same domain and matches keywords
+                if (fullUrl.startsWith(domain) && this.matchesKeywords(combinedText, keywords)) {
+                  eventPages.push(fullUrl);
+                  console.log(`  ✓ Found event: ${linkText.substring(0, 60)}...`);
+                }
+              } catch (e) {
+                // Invalid URL
+              }
+            }
+          });
+
+          await this.delay(500); // Small delay between schedule page checks
+        }
+
+        // If we found event pages, use those instead of schedule pages
+        if (eventPages.length > 0) {
+          console.log(`Collected ${eventPages.length} event pages from schedule pages`);
+          foundPages = [...new Set([...foundPages, ...eventPages])]; // Combine both
+        }
+      }
+
+    } catch (error) {
+      console.error(`Error searching domain ${domain}:`, error.message);
     }
 
-  } catch (error) {
-    console.error(`Error searching domain ${domain}:`, error.message);
+    // Remove duplicates and limit results
+    const uniquePages = [...new Set(foundPages)];
+    console.log(`Final result: ${uniquePages.length} unique pages matching keywords`);
+
+    return uniquePages.slice(0, 20); // Increased limit to 20 to capture more events
   }
 
-  // Remove duplicates and limit results
-  const uniquePages = [...new Set(foundPages)];
-  console.log(`Final result: ${uniquePages.length} unique pages matching keywords`);
+  /**
+   * Find multi-server stream links on a page
+   * Enhanced for VIPLeague-style sites (Link 1, Link 2, Link 3, etc.)
+   */
+  findStreamServerLinks(html, baseUrl) {
+    const streamLinks = [];
 
-  return uniquePages.slice(0, 20); // Increased limit to 20 to capture more events
-}
+    if (!html) return streamLinks;
 
-/**
- * Find multi-server stream links on a page
- * Enhanced for VIPLeague-style sites (Link 1, Link 2, Link 3, etc.)
- */
-findStreamServerLinks(html, baseUrl) {
-  const streamLinks = [];
+    const $ = cheerio.load(html);
 
-  if (!html) return streamLinks;
+    // Pattern 1: VIPLeague-style "Link 1", "Link 2", "Link 3" buttons
+    $('a:contains("Link"), button:contains("Link")').each((i, elem) => {
+      const text = $(elem).text().trim();
+      const href = $(elem).attr('href') || $(elem).attr('data-url') || $(elem).attr('data-src');
 
-  const $ = cheerio.load(html);
-
-  // Pattern 1: VIPLeague-style "Link 1", "Link 2", "Link 3" buttons
-  $('a:contains("Link"), button:contains("Link")').each((i, elem) => {
-    const text = $(elem).text().trim();
-    const href = $(elem).attr('href') || $(elem).attr('data-url') || $(elem).attr('data-src');
-
-    if (text.match(/Link\s*\d+/i) && href) {
-      const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-      streamLinks.push({
-        url: fullUrl,
-        label: text,
-        type: 'vipleague-link'
-      });
-    }
-  });
-
-  // Pattern 2: Links with data-uri attribute (BuffStreams pattern)
-  $('a[data-uri*="stream"]').each((i, elem) => {
-    const dataUri = $(elem).attr('data-uri');
-    const text = $(elem).text().trim();
-
-    if (dataUri) {
-      const fullUrl = dataUri.startsWith('http') ? dataUri : new URL(dataUri, baseUrl).href;
-      streamLinks.push({
-        url: fullUrl,
-        label: text || `Stream ${i + 1}`,
-        type: 'data-uri'
-      });
-    }
-  });
-
-  // Pattern 3: Links with text containing "stream" or "server"
-  $('a[href]').each((i, elem) => {
-    const href = $(elem).attr('href');
-    const text = $(elem).text().toLowerCase();
-
-    if ((text.includes('stream') || text.includes('server') || text.includes('watch')) &&
-      (text.match(/\d+/) || text.includes('hd') || text.includes('sd'))) {
-      const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-
-      // Avoid duplicates
-      if (!streamLinks.some(link => link.url === fullUrl)) {
+      if (text.match(/Link\s*\d+/i) && href) {
+        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
         streamLinks.push({
           url: fullUrl,
-          label: $(elem).text().trim(),
-          type: 'text-match'
+          label: text,
+          type: 'vipleague-link'
         });
       }
-    }
-  });
+    });
 
-  // Pattern 4: DaddyHD-style channel links (watch.php?id=XXX)
-  $('a[href*="watch.php"], a[href*="stream"]').each((i, elem) => {
-    const href = $(elem).attr('href');
-    const text = $(elem).text().trim();
+    // Pattern 2: Links with data-uri attribute (BuffStreams pattern)
+    $('a[data-uri*="stream"]').each((i, elem) => {
+      const dataUri = $(elem).attr('data-uri');
+      const text = $(elem).text().trim();
 
-    const isChannelLink = text.match(/DAZN|ESPN|SKY|BT SPORT|BEIN|TNT|NBC|FOX|CBS|CHANNEL/i) ||
-      href.match(/id=\d+|stream-\d+/i);
-
-    if (isChannelLink && href) {
-      const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
-
-      if (!streamLinks.some(link => link.url === fullUrl)) {
+      if (dataUri) {
+        const fullUrl = dataUri.startsWith('http') ? dataUri : new URL(dataUri, baseUrl).href;
         streamLinks.push({
           url: fullUrl,
-          label: text || `Channel ${i + 1}`,
-          type: 'channel-link'
+          label: text || `Stream ${i + 1}`,
+          type: 'data-uri'
         });
       }
-    }
-  });
+    });
 
-  // Pattern 5: ID-based channels (DaddyHD pattern)
-  $('*').each((i, elem) => {
-    const elemText = $(elem).text();
-    const idMatch = elemText.match(/ID:\s*(\d+)/i);
+    // Pattern 3: Links with text containing "stream" or "server"
+    $('a[href]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      const text = $(elem).text().toLowerCase();
 
-    if (idMatch) {
-      const channelId = idMatch[1];
-      const channelName = elemText.split('\n')[0].trim();
+      if ((text.includes('stream') || text.includes('server') || text.includes('watch')) &&
+        (text.match(/\d+/) || text.includes('hd') || text.includes('sd'))) {
+        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
 
-      let link = $(elem).find('a[href]').first().attr('href');
-
-      if (!link) {
-        link = `watch.php?id=${channelId}`;
+        // Avoid duplicates
+        if (!streamLinks.some(link => link.url === fullUrl)) {
+          streamLinks.push({
+            url: fullUrl,
+            label: $(elem).text().trim(),
+            type: 'text-match'
+          });
+        }
       }
+    });
 
-      const fullUrl = link.startsWith('http') ? link : new URL(link, baseUrl).href;
+    // Pattern 4: DaddyHD-style channel links (watch.php?id=XXX)
+    $('a[href*="watch.php"], a[href*="stream"]').each((i, elem) => {
+      const href = $(elem).attr('href');
+      const text = $(elem).text().trim();
 
-      if (!streamLinks.some(l => l.url === fullUrl)) {
-        streamLinks.push({
-          url: fullUrl,
-          label: channelName,
-          type: 'id-based',
-          channelId: channelId
-        });
+      const isChannelLink = text.match(/DAZN|ESPN|SKY|BT SPORT|BEIN|TNT|NBC|FOX|CBS|CHANNEL/i) ||
+        href.match(/id=\d+|stream-\d+/i);
+
+      if (isChannelLink && href) {
+        const fullUrl = href.startsWith('http') ? href : new URL(href, baseUrl).href;
+
+        if (!streamLinks.some(link => link.url === fullUrl)) {
+          streamLinks.push({
+            url: fullUrl,
+            label: text || `Channel ${i + 1}`,
+            type: 'channel-link'
+          });
+        }
       }
-    }
-  });
+    });
 
-  return streamLinks;
-}
+    // Pattern 5: ID-based channels (DaddyHD pattern)
+    $('*').each((i, elem) => {
+      const elemText = $(elem).text();
+      const idMatch = elemText.match(/ID:\s*(\d+)/i);
 
-/**
- * Extract iframe sources from a page
- */
-extractIframeSources(html, baseUrl) {
-  const iframeSources = [];
+      if (idMatch) {
+        const channelId = idMatch[1];
+        const channelName = elemText.split('\n')[0].trim();
 
-  if (!html) return iframeSources;
+        let link = $(elem).find('a[href]').first().attr('href');
 
-  const $ = cheerio.load(html);
+        if (!link) {
+          link = `watch.php?id=${channelId}`;
+        }
 
-  $('iframe[src]').each((i, elem) => {
-    const src = $(elem).attr('src');
-    if (src) {
-      const fullUrl = src.startsWith('http') ? src : new URL(src, baseUrl).href;
-      iframeSources.push(fullUrl);
-    }
-  });
+        const fullUrl = link.startsWith('http') ? link : new URL(link, baseUrl).href;
 
-  return iframeSources;
-}
+        if (!streamLinks.some(l => l.url === fullUrl)) {
+          streamLinks.push({
+            url: fullUrl,
+            label: channelName,
+            type: 'id-based',
+            channelId: channelId
+          });
+        }
+      }
+    });
 
-/**
- * Extract m3u8 URLs from page content
- */
-extractM3U8URLs(html, pageUrl) {
-  const m3u8URLs = new Set();
-
-  if (!html) return Array.from(m3u8URLs);
-
-  // Method 1: Direct regex search for m3u8 URLs
-  const m3u8Regex = /(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi;
-  const matches = html.match(m3u8Regex);
-  if (matches) {
-    matches.forEach(url => m3u8URLs.add(url));
+    return streamLinks;
   }
 
-  // Method 2: Parse HTML for video sources
-  const $ = cheerio.load(html);
+  /**
+   * Extract iframe sources from a page
+   */
+  extractIframeSources(html, baseUrl) {
+    const iframeSources = [];
 
-  // Check video tags
-  $('video source[src*=".m3u8"], video[src*=".m3u8"]').each((i, elem) => {
-    const src = $(elem).attr('src');
-    if (src) {
-      const fullUrl = src.startsWith('http') ? src : new URL(src, pageUrl).href;
-      m3u8URLs.add(fullUrl);
-    }
-  });
+    if (!html) return iframeSources;
 
-  // Check data attributes
-  $('[data-src*=".m3u8"], [data-video*=".m3u8"], [data-stream*=".m3u8"], [data-file*=".m3u8"]').each((i, elem) => {
-    const src = $(elem).attr('data-src') || $(elem).attr('data-video') ||
-      $(elem).attr('data-stream') || $(elem).attr('data-file');
-    if (src) {
-      const fullUrl = src.startsWith('http') ? src : new URL(src, pageUrl).href;
-      m3u8URLs.add(fullUrl);
-    }
-  });
+    const $ = cheerio.load(html);
 
-  // Method 3: Search in script tags
-  $('script').each((i, elem) => {
-    const scriptContent = $(elem).html();
-    if (scriptContent) {
-      const scriptMatches = scriptContent.match(m3u8Regex);
-      if (scriptMatches) {
-        scriptMatches.forEach(url => m3u8URLs.add(url));
+    $('iframe[src]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src) {
+        const fullUrl = src.startsWith('http') ? src : new URL(src, baseUrl).href;
+        iframeSources.push(fullUrl);
       }
+    });
+
+    return iframeSources;
+  }
+
+  /**
+   * Extract m3u8 URLs from page content
+   */
+  extractM3U8URLs(html, pageUrl) {
+    const m3u8URLs = new Set();
+
+    if (!html) return Array.from(m3u8URLs);
+
+    // Method 1: Direct regex search for m3u8 URLs
+    const m3u8Regex = /(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi;
+    const matches = html.match(m3u8Regex);
+    if (matches) {
+      matches.forEach(url => m3u8URLs.add(url));
     }
-  });
 
-  return Array.from(m3u8URLs);
-}
+    // Method 2: Parse HTML for video sources
+    const $ = cheerio.load(html);
 
-/**
- * Extract m3u8 URLs from obfuscated JavaScript
- */
-extractObfuscatedM3U8(html) {
-  const m3u8URLs = new Set();
+    // Check video tags
+    $('video source[src*=".m3u8"], video[src*=".m3u8"]').each((i, elem) => {
+      const src = $(elem).attr('src');
+      if (src) {
+        const fullUrl = src.startsWith('http') ? src : new URL(src, pageUrl).href;
+        m3u8URLs.add(fullUrl);
+      }
+    });
 
-  if (!html) return Array.from(m3u8URLs);
+    // Check data attributes
+    $('[data-src*=".m3u8"], [data-video*=".m3u8"], [data-stream*=".m3u8"], [data-file*=".m3u8"]').each((i, elem) => {
+      const src = $(elem).attr('data-src') || $(elem).attr('data-video') ||
+        $(elem).attr('data-stream') || $(elem).attr('data-file');
+      if (src) {
+        const fullUrl = src.startsWith('http') ? src : new URL(src, pageUrl).href;
+        m3u8URLs.add(fullUrl);
+      }
+    });
 
-  try {
-    // Method 1: Base64 encoded URLs
-    const base64Regex = /([A-Za-z0-9+/]{20,}={0,2})/g;
-    const base64Matches = html.match(base64Regex) || [];
+    // Method 3: Search in script tags
+    $('script').each((i, elem) => {
+      const scriptContent = $(elem).html();
+      if (scriptContent) {
+        const scriptMatches = scriptContent.match(m3u8Regex);
+        if (scriptMatches) {
+          scriptMatches.forEach(url => m3u8URLs.add(url));
+        }
+      }
+    });
 
-    base64Matches.forEach(encoded => {
-      try {
-        const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
-        if (decoded.includes('.m3u8')) {
+    return Array.from(m3u8URLs);
+  }
+
+  /**
+   * Extract m3u8 URLs from obfuscated JavaScript
+   */
+  extractObfuscatedM3U8(html) {
+    const m3u8URLs = new Set();
+
+    if (!html) return Array.from(m3u8URLs);
+
+    try {
+      // Method 1: Base64 encoded URLs
+      const base64Regex = /([A-Za-z0-9+/]{20,}={0,2})/g;
+      const base64Matches = html.match(base64Regex) || [];
+
+      base64Matches.forEach(encoded => {
+        try {
+          const decoded = Buffer.from(encoded, 'base64').toString('utf-8');
+          if (decoded.includes('.m3u8')) {
+            const m3u8Match = decoded.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi);
+            if (m3u8Match) {
+              m3u8Match.forEach(url => m3u8URLs.add(url));
+            }
+          }
+        } catch (e) {
+          // Not valid base64
+        }
+      });
+
+      // Method 2: URL-encoded m3u8 URLs
+      const urlEncodedRegex = /(https?%3A%2F%2F[^"'\s<>]+\.m3u8[^"'\s<>]*)/gi;
+      const urlEncodedMatches = html.match(urlEncodedRegex) || [];
+
+      urlEncodedMatches.forEach(encoded => {
+        try {
+          const decoded = decodeURIComponent(encoded);
+          m3u8URLs.add(decoded);
+        } catch (e) {
+          // Invalid encoding
+        }
+      });
+
+      // Method 3: Packed JavaScript
+      const packedRegex = /eval\(function\(p,a,c,k,e,d\).*?\}\((.*?)\)\)/gs;
+      const packedMatches = html.match(packedRegex) || [];
+
+      packedMatches.forEach(packed => {
+        const m3u8InPacked = packed.match(/['"](https?:\/\/[^'"]+\.m3u8[^'"]*)['"]/gi);
+        if (m3u8InPacked) {
+          m3u8InPacked.forEach(url => {
+            const cleanUrl = url.replace(/['"]/g, '');
+            m3u8URLs.add(cleanUrl);
+          });
+        }
+      });
+
+      // Method 4: atob() decoded strings
+      const atobRegex = /atob\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+      let atobMatch;
+
+      while ((atobMatch = atobRegex.exec(html)) !== null) {
+        try {
+          const decoded = Buffer.from(atobMatch[1], 'base64').toString('utf-8');
           const m3u8Match = decoded.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi);
           if (m3u8Match) {
             m3u8Match.forEach(url => m3u8URLs.add(url));
           }
+        } catch (e) {
+          // Invalid base64
         }
-      } catch (e) {
-        // Not valid base64
       }
-    });
 
-    // Method 2: URL-encoded m3u8 URLs
-    const urlEncodedRegex = /(https?%3A%2F%2F[^"'\s<>]+\.m3u8[^"'\s<>]*)/gi;
-    const urlEncodedMatches = html.match(urlEncodedRegex) || [];
+      // Method 5: Common variable names
+      const varPatterns = [
+        /(?:source|src|stream|url|file|video)\s*[:=]\s*['"]([^'"]*\.m3u8[^'"]*)['"]/gi,
+        /['"]([^'"]*\.m3u8[^'"]*)['"]\s*[:=]\s*(?:source|src|stream|url|file|video)/gi,
+      ];
 
-    urlEncodedMatches.forEach(encoded => {
-      try {
-        const decoded = decodeURIComponent(encoded);
-        m3u8URLs.add(decoded);
-      } catch (e) {
-        // Invalid encoding
-      }
-    });
-
-    // Method 3: Packed JavaScript
-    const packedRegex = /eval\(function\(p,a,c,k,e,d\).*?\}\((.*?)\)\)/gs;
-    const packedMatches = html.match(packedRegex) || [];
-
-    packedMatches.forEach(packed => {
-      const m3u8InPacked = packed.match(/['"](https?:\/\/[^'"]+\.m3u8[^'"]*)['"]/gi);
-      if (m3u8InPacked) {
-        m3u8InPacked.forEach(url => {
-          const cleanUrl = url.replace(/['"]/g, '');
-          m3u8URLs.add(cleanUrl);
-        });
-      }
-    });
-
-    // Method 4: atob() decoded strings
-    const atobRegex = /atob\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
-    let atobMatch;
-
-    while ((atobMatch = atobRegex.exec(html)) !== null) {
-      try {
-        const decoded = Buffer.from(atobMatch[1], 'base64').toString('utf-8');
-        const m3u8Match = decoded.match(/(https?:\/\/[^\s"'<>]+\.m3u8[^\s"'<>]*)/gi);
-        if (m3u8Match) {
-          m3u8Match.forEach(url => m3u8URLs.add(url));
+      varPatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(html)) !== null) {
+          if (match[1] && match[1].includes('.m3u8') && match[1].startsWith('http')) {
+            m3u8URLs.add(match[1]);
+          }
         }
-      } catch (e) {
-        // Invalid base64
-      }
+      });
+
+    } catch (error) {
+      console.error('Error extracting obfuscated m3u8:', error.message);
     }
 
-    // Method 5: Common variable names
-    const varPatterns = [
-      /(?:source|src|stream|url|file|video)\s*[:=]\s*['"]([^'"]*\.m3u8[^'"]*)['"]/gi,
-      /['"]([^'"]*\.m3u8[^'"]*)['"]\s*[:=]\s*(?:source|src|stream|url|file|video)/gi,
-    ];
-
-    varPatterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(html)) !== null) {
-        if (match[1] && match[1].includes('.m3u8') && match[1].startsWith('http')) {
-          m3u8URLs.add(match[1]);
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Error extracting obfuscated m3u8:', error.message);
+    return Array.from(m3u8URLs);
   }
-
-  return Array.from(m3u8URLs);
-}
 
   /**
    * Recursively extract M3U8 URLs from iframes (up to maxDepth levels)
    * This is crucial for sites that nest players in multiple iframe levels
    */
   async deepExtractIframes(url, depth = 0, maxDepth = 3, visited = new Set()) {
-  // Prevent infinite loops
-  if (depth > maxDepth || visited.has(url)) {
-    return [];
-  }
-
-  visited.add(url);
-  const allM3U8s = [];
-
-  try {
-    console.log(`${'  '.repeat(depth)}→ Checking iframe level ${depth}: ${url.substring(0, 60)}...`);
-
-    // Fetch the page
-    const html = await this.fetchPage(url);
-    if (!html) return allM3U8s;
-
-    // Extract M3U8 URLs from current page
-    const pageM3U8s = this.extractM3U8URLs(html, url);
-    const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
-    allM3U8s.push(...pageM3U8s, ...obfuscatedM3U8s);
-
-    if (allM3U8s.length > 0) {
-      console.log(`${'  '.repeat(depth)}✓ Found ${allM3U8s.length} M3U8(s) at level ${depth}`);
+    // Prevent infinite loops
+    if (depth > maxDepth || visited.has(url)) {
+      return [];
     }
 
-    // Get all iframes from this page
-    const iframes = this.extractIframeSources(html, url);
+    visited.add(url);
+    const allM3U8s = [];
 
-    if (iframes.length > 0) {
-      console.log(`${'  '.repeat(depth)}→ Found ${iframes.length} iframe(s), checking deeper...`);
+    try {
+      console.log(`${'  '.repeat(depth)}→ Checking iframe level ${depth}: ${url.substring(0, 60)}...`);
 
-      // Recursively check each iframe in parallel
-      const iframeResults = await Promise.all(
-        iframes.slice(0, 5).map(async (iframeUrl) => {
-          await this.delay(200); // Small delay to avoid overwhelming
-          return await this.deepExtractIframes(iframeUrl, depth + 1, maxDepth, visited);
-        })
-      );
+      // Fetch the page
+      const html = await this.fetchPage(url);
+      if (!html) return allM3U8s;
 
-      // Flatten results
-      iframeResults.forEach(results => allM3U8s.push(...results));
+      // Extract M3U8 URLs from current page
+      const pageM3U8s = this.extractM3U8URLs(html, url);
+      const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
+      allM3U8s.push(...pageM3U8s, ...obfuscatedM3U8s);
+
+      if (allM3U8s.length > 0) {
+        console.log(`${'  '.repeat(depth)}✓ Found ${allM3U8s.length} M3U8(s) at level ${depth}`);
+      }
+
+      // Get all iframes from this page
+      const iframes = this.extractIframeSources(html, url);
+
+      if (iframes.length > 0) {
+        console.log(`${'  '.repeat(depth)}→ Found ${iframes.length} iframe(s), checking deeper...`);
+
+        // Recursively check each iframe in parallel
+        const iframeResults = await Promise.all(
+          iframes.slice(0, 5).map(async (iframeUrl) => {
+            await this.delay(200); // Small delay to avoid overwhelming
+            return await this.deepExtractIframes(iframeUrl, depth + 1, maxDepth, visited);
+          })
+        );
+
+        // Flatten results
+        iframeResults.forEach(results => allM3U8s.push(...results));
+      }
+
+      return [...new Set(allM3U8s)]; // Remove duplicates
+
+    } catch (error) {
+      console.error(`Error extracting from iframe at depth ${depth}:`, error.message);
+      return allM3U8s;
     }
-
-    return [...new Set(allM3U8s)]; // Remove duplicates
-
-  } catch (error) {
-    console.error(`Error extracting from iframe at depth ${depth}:`, error.message);
-    return allM3U8s;
   }
-}
 
   /**
    * Scrape page  /**
@@ -1162,458 +1171,458 @@ extractObfuscatedM3U8(html) {
    * Captures M3U8 URLs from network traffic while loading pages
    */
   async deepExtractIframes(url, depth = 0, maxDepth = 3) {
-  const m3u8Urls = new Set();
-  const networkCapturedUrls = new Set();
+    const m3u8Urls = new Set();
+    const networkCapturedUrls = new Set();
 
-  if (depth > maxDepth) {
-    return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: [] };
-  }
-
-  try {
-    const browser = await this.initBrowser();
-    if (!browser) {
-      console.log('Browser not available, skipping deep iframe extraction');
-      return { m3u8Urls: [], networkCaptured: [] };
+    if (depth > maxDepth) {
+      return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: [] };
     }
 
-    const page = await browser.newPage();
-
-    // NETWORK INTERCEPTION: Capture M3U8 URLs from network requests
-    page.on('request', request => {
-      const requestUrl = request.url();
-      if (requestUrl.includes('.m3u8') || requestUrl.includes('m3u8')) {
-        console.log(`🌐 Network captured M3U8: ${requestUrl}`);
-        networkCapturedUrls.add(requestUrl);
-        m3u8Urls.add(requestUrl);
+    try {
+      const browser = await this.initBrowser();
+      if (!browser) {
+        console.log('Browser not available, skipping deep iframe extraction');
+        return { m3u8Urls: [], networkCaptured: [] };
       }
-    });
 
-    page.on('response', async response => {
-      const responseUrl = response.url();
-      if (responseUrl.includes('.m3u8') || responseUrl.includes('m3u8')) {
-        console.log(`🌐 Network response M3U8: ${responseUrl}`);
-        networkCapturedUrls.add(responseUrl);
-        m3u8Urls.add(responseUrl);
-      }
-    });
+      const page = await browser.newPage();
 
-    // Set longer timeout for network requests to complete
-    await page.goto(url, {
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    }).catch(e => console.log('Page load timeout, continuing...'));
-
-    // Wait a bit for any delayed network requests
-    await this.delay(2000);
-
-    // Get page content for traditional extraction
-    const html = await page.content();
-    const $ = cheerio.load(html);
-
-    // Traditional M3U8 extraction from HTML
-    const htmlM3u8s = this.extractM3U8URLs(html, url); // Changed to use existing method
-    htmlM3u8s.forEach(url => m3u8Urls.add(url));
-
-    // Extract iframes for recursive checking
-    const iframes = [];
-    $('iframe').each((i, elem) => {
-      const src = $(elem).attr('src');
-      if (src) {
-        try {
-          const iframeUrl = src.startsWith('http') ? src : new URL(src, url).href;
-          iframes.push(iframeUrl);
-        } catch (e) {
-          // Invalid URL
+      // NETWORK INTERCEPTION: Capture M3U8 URLs from network requests
+      page.on('request', request => {
+        const requestUrl = request.url();
+        if (requestUrl.includes('.m3u8') || requestUrl.includes('m3u8')) {
+          console.log(`🌐 Network captured M3U8: ${requestUrl}`);
+          networkCapturedUrls.add(requestUrl);
+          m3u8Urls.add(requestUrl);
         }
+      });
+
+      page.on('response', async response => {
+        const responseUrl = response.url();
+        if (responseUrl.includes('.m3u8') || responseUrl.includes('m3u8')) {
+          console.log(`🌐 Network response M3U8: ${responseUrl}`);
+          networkCapturedUrls.add(responseUrl);
+          m3u8Urls.add(responseUrl);
+        }
+      });
+
+      // Set longer timeout for network requests to complete
+      await page.goto(url, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      }).catch(e => console.log('Page load timeout, continuing...'));
+
+      // Wait a bit for any delayed network requests
+      await this.delay(2000);
+
+      // Get page content for traditional extraction
+      const html = await page.content();
+      const $ = cheerio.load(html);
+
+      // Traditional M3U8 extraction from HTML
+      const htmlM3u8s = this.extractM3U8URLs(html, url); // Changed to use existing method
+      htmlM3u8s.forEach(url => m3u8Urls.add(url));
+
+      // Extract iframes for recursive checking
+      const iframes = [];
+      $('iframe').each((i, elem) => {
+        const src = $(elem).attr('src');
+        if (src) {
+          try {
+            const iframeUrl = src.startsWith('http') ? src : new URL(src, url).href;
+            iframes.push(iframeUrl);
+          } catch (e) {
+            // Invalid URL
+          }
+        }
+      });
+
+      await page.close();
+
+      // Recursively check iframes
+      for (const iframeUrl of iframes.slice(0, 5)) {
+        console.log(`  ${'  '.repeat(depth)}→ Checking iframe (depth ${depth + 1}): ${iframeUrl.substring(0, 60)}...`);
+        const iframeResult = await this.deepExtractIframes(iframeUrl, depth + 1, maxDepth);
+        iframeResult.m3u8Urls.forEach(url => m3u8Urls.add(url));
+        iframeResult.networkCaptured.forEach(url => networkCapturedUrls.add(url));
+        await this.delay(500);
       }
-    });
 
-    await page.close();
+      return {
+        m3u8Urls: Array.from(m3u8Urls),
+        networkCaptured: Array.from(networkCapturedUrls)
+      };
 
-    // Recursively check iframes
-    for (const iframeUrl of iframes.slice(0, 5)) {
-      console.log(`  ${'  '.repeat(depth)}→ Checking iframe (depth ${depth + 1}): ${iframeUrl.substring(0, 60)}...`);
-      const iframeResult = await this.deepExtractIframes(iframeUrl, depth + 1, maxDepth);
-      iframeResult.m3u8Urls.forEach(url => m3u8Urls.add(url));
-      iframeResult.networkCaptured.forEach(url => networkCapturedUrls.add(url));
-      await this.delay(500);
+    } catch (error) {
+      console.error(`Error in deep iframe extraction for ${url}:`, error.message);
+      return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: Array.from(networkCapturedUrls) };
     }
-
-    return {
-      m3u8Urls: Array.from(m3u8Urls),
-      networkCaptured: Array.from(networkCapturedUrls)
-    };
-
-  } catch (error) {
-    console.error(`Error in deep iframe extraction for ${url}:`, error.message);
-    return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: Array.from(networkCapturedUrls) };
   }
-}
 
   /**
    * Scrape page with Puppeteer network interception to catch M3U8 URLs
    * This captures URLs loaded dynamically via JavaScript
    */
   async scrapeWithNetworkInterception(url) {
-  const m3u8URLs = new Set();
+    const m3u8URLs = new Set();
 
-  try {
-    const browser = await this.initBrowser();
-    const page = await browser.newPage();
+    try {
+      const browser = await this.initBrowser();
+      const page = await browser.newPage();
 
-    // Set up network interception
-    await page.setRequestInterception(true);
+      // Set up network interception
+      await page.setRequestInterception(true);
 
-    page.on('request', (request) => {
-      request.continue();
-    });
+      page.on('request', (request) => {
+        request.continue();
+      });
 
-    page.on('response', async (response) => {
-      const responseUrl = response.url();
+      page.on('response', async (response) => {
+        const responseUrl = response.url();
 
-      // Capture any M3U8 URLs from network requests
-      if (responseUrl.includes('.m3u8')) {
-        m3u8URLs.add(responseUrl);
-        console.log(`  🎯 Network intercepted: ${responseUrl.substring(0, 80)}...`);
-      }
-    });
+        // Capture any M3U8 URLs from network requests
+        if (responseUrl.includes('.m3u8')) {
+          m3u8URLs.add(responseUrl);
+          console.log(`  🎯 Network intercepted: ${responseUrl.substring(0, 80)}...`);
+        }
+      });
 
-    // Navigate and wait for network activity
-    await page.goto(url, {
-      waitUntil: 'networkidle0',
-      timeout: 15000
-    });
+      // Navigate and wait for network activity
+      await page.goto(url, {
+        waitUntil: 'networkidle0',
+        timeout: 15000
+      });
 
-    // Wait a bit for any delayed requests
-    await this.delay(2000);
+      // Wait a bit for any delayed requests
+      await this.delay(2000);
 
-    await page.close();
+      await page.close();
 
-    return Array.from(m3u8URLs);
+      return Array.from(m3u8URLs);
 
-  } catch (error) {
-    console.error(`Error with network interception for ${url}:`, error.message);
-    return Array.from(m3u8URLs);
+    } catch (error) {
+      console.error(`Error with network interception for ${url}:`, error.message);
+      return Array.from(m3u8URLs);
+    }
   }
-}
 
   /**
    * Deep scrape a page for m3u8 URLs including multi-server streams
    */
   async deepScrapePage(pageUrl, domainUrl) {
-  const allResults = [];
+    const allResults = [];
 
-  try {
-    console.log(`Deep scraping: ${pageUrl}`);
+    try {
+      console.log(`Deep scraping: ${pageUrl}`);
 
-    // Fetch main page
-    const html = await this.fetchPage(pageUrl);
+      // Fetch main page
+      const html = await this.fetchPage(pageUrl);
 
-    // Extract m3u8 URLs from main page
-    const mainM3U8s = this.extractM3U8URLs(html, pageUrl);
-    const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
-    mainM3U8s.push(...obfuscatedM3U8s);
+      // Extract m3u8 URLs from main page
+      const mainM3U8s = this.extractM3U8URLs(html, pageUrl);
+      const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
+      mainM3U8s.push(...obfuscatedM3U8s);
 
-    if (mainM3U8s.length > 0) {
-      allResults.push({
-        scrapedUrl: pageUrl,
-        sourceUrls: [...new Set(mainM3U8s)],
-        domainIndexUrl: domainUrl,
-        timestamp: new Date().toISOString(),
-        success: true,
-        serverLabel: 'Main Page'
-      });
-    }
+      if (mainM3U8s.length > 0) {
+        allResults.push({
+          scrapedUrl: pageUrl,
+          sourceUrls: [...new Set(mainM3U8s)],
+          domainIndexUrl: domainUrl,
+          timestamp: new Date().toISOString(),
+          success: true,
+          serverLabel: 'Main Page'
+        });
+      }
 
-    // Find multi-server stream links
-    const streamLinks = this.findStreamServerLinks(html, pageUrl);
+      // Find multi-server stream links
+      const streamLinks = this.findStreamServerLinks(html, pageUrl);
 
-    if (streamLinks.length > 0) {
-      console.log(`Found ${streamLinks.length} stream server links, scraping in parallel...`);
+      if (streamLinks.length > 0) {
+        console.log(`Found ${streamLinks.length} stream server links, scraping in parallel...`);
 
-      // NEW: Scrape stream servers in parallel for much faster processing
-      const streamResults = await Promise.all(
-        streamLinks.slice(0, 20).map(async (streamLink) => {
-          try {
-            console.log(`→ Scraping: ${streamLink.label}`);
+        // NEW: Scrape stream servers in parallel for much faster processing
+        const streamResults = await Promise.all(
+          streamLinks.slice(0, 20).map(async (streamLink) => {
+            try {
+              console.log(`→ Scraping: ${streamLink.label}`);
 
-            // Try deep iframe extraction (network interception disabled due to anti-bot issues)
-            let serverM3U8s = await this.deepExtractIframes(streamLink.url, 0, 3);
-            console.log(`  Deep iframe extraction returned ${serverM3U8s.length} M3U8(s)`);
+              // Try deep iframe extraction (network interception disabled due to anti-bot issues)
+              let serverM3U8s = await this.deepExtractIframes(streamLink.url, 0, 3);
+              console.log(`  Deep iframe extraction returned ${serverM3U8s.length} M3U8(s)`);
 
-            // Fallback: If deep extraction didn't find anything, try basic extraction
-            if (serverM3U8s.length === 0) {
-              console.log(`  Trying basic extraction...`);
-              const serverHtml = await this.fetchPage(streamLink.url);
-              if (serverHtml) {
-                serverM3U8s = this.extractM3U8URLs(serverHtml, streamLink.url);
-                const obfuscated = this.extractObfuscatedM3U8(serverHtml);
-                serverM3U8s.push(...obfuscated);
+              // Fallback: If deep extraction didn't find anything, try basic extraction
+              if (serverM3U8s.length === 0) {
+                console.log(`  Trying basic extraction...`);
+                const serverHtml = await this.fetchPage(streamLink.url);
+                if (serverHtml) {
+                  serverM3U8s = this.extractM3U8URLs(serverHtml, streamLink.url);
+                  const obfuscated = this.extractObfuscatedM3U8(serverHtml);
+                  serverM3U8s.push(...obfuscated);
+                }
               }
-            }
 
 
 
-            if (serverM3U8s.length > 0) {
-              console.log(`  ✓ Found ${serverM3U8s.length} M3U8(s) for ${streamLink.label}`);
-              return {
-                scrapedUrl: streamLink.url,
-                sourceUrls: [...new Set(serverM3U8s)],
-                domainIndexUrl: domainUrl,
-                timestamp: new Date().toISOString(),
-                success: true,
-                serverLabel: streamLink.label
-              };
-            } else {
-              console.log(`  ✗ No M3U8 found for ${streamLink.label}`);
+              if (serverM3U8s.length > 0) {
+                console.log(`  ✓ Found ${serverM3U8s.length} M3U8(s) for ${streamLink.label}`);
+                return {
+                  scrapedUrl: streamLink.url,
+                  sourceUrls: [...new Set(serverM3U8s)],
+                  domainIndexUrl: domainUrl,
+                  timestamp: new Date().toISOString(),
+                  success: true,
+                  serverLabel: streamLink.label
+                };
+              } else {
+                console.log(`  ✗ No M3U8 found for ${streamLink.label}`);
+                return {
+                  scrapedUrl: streamLink.url,
+                  sourceUrls: [],
+                  domainIndexUrl: domainUrl,
+                  timestamp: new Date().toISOString(),
+                  success: false,
+                  serverLabel: streamLink.label
+                };
+              }
+
+            } catch (error) {
+              console.error(`Error scraping ${streamLink.label}:`, error.message);
               return {
                 scrapedUrl: streamLink.url,
                 sourceUrls: [],
                 domainIndexUrl: domainUrl,
                 timestamp: new Date().toISOString(),
                 success: false,
-                serverLabel: streamLink.label
+                serverLabel: streamLink.label,
+                error: error.message
               };
             }
+          })
+        );
 
-          } catch (error) {
-            console.error(`Error scraping ${streamLink.label}:`, error.message);
-            return {
-              scrapedUrl: streamLink.url,
-              sourceUrls: [],
-              domainIndexUrl: domainUrl,
-              timestamp: new Date().toISOString(),
-              success: false,
-              serverLabel: streamLink.label,
-              error: error.message
-            };
-          }
-        })
-      );
-
-      allResults.push(...streamResults);
-    }
-
-    // If no results, try headless browser
-    if (allResults.length === 0 && this.useHeadlessBrowser) {
-      console.log(`Trying headless browser for: ${pageUrl}`);
-      const browserHtml = await this.fetchPageWithBrowser(pageUrl);
-      const browserM3U8s = this.extractM3U8URLs(browserHtml, pageUrl);
-      const browserObfuscated = this.extractObfuscatedM3U8(browserHtml);
-      browserM3U8s.push(...browserObfuscated);
-
-      if (browserM3U8s.length > 0) {
-        allResults.push({
-          scrapedUrl: pageUrl,
-          sourceUrls: [...new Set(browserM3U8s)],
-          domainIndexUrl: domainUrl,
-          timestamp: new Date().toISOString(),
-          success: true,
-          serverLabel: 'Browser Render'
-        });
+        allResults.push(...streamResults);
       }
+
+      // If no results, try headless browser
+      if (allResults.length === 0 && this.useHeadlessBrowser) {
+        console.log(`Trying headless browser for: ${pageUrl}`);
+        const browserHtml = await this.fetchPageWithBrowser(pageUrl);
+        const browserM3U8s = this.extractM3U8URLs(browserHtml, pageUrl);
+        const browserObfuscated = this.extractObfuscatedM3U8(browserHtml);
+        browserM3U8s.push(...browserObfuscated);
+
+        if (browserM3U8s.length > 0) {
+          allResults.push({
+            scrapedUrl: pageUrl,
+            sourceUrls: [...new Set(browserM3U8s)],
+            domainIndexUrl: domainUrl,
+            timestamp: new Date().toISOString(),
+            success: true,
+            serverLabel: 'Browser Render'
+          });
+        }
+      }
+
+      return allResults.length > 0 ? allResults : [{
+        scrapedUrl: pageUrl,
+        sourceUrls: [],
+        domainIndexUrl: domainUrl,
+        timestamp: new Date().toISOString(),
+        success: false,
+        serverLabel: 'No streams found'
+      }];
+
+    } catch (error) {
+      console.error(`Error deep scraping page ${pageUrl}:`, error.message);
+      return [{
+        scrapedUrl: pageUrl,
+        sourceUrls: [],
+        domainIndexUrl: domainUrl,
+        timestamp: new Date().toISOString(),
+        success: false,
+        error: error.message
+      }];
     }
-
-    return allResults.length > 0 ? allResults : [{
-      scrapedUrl: pageUrl,
-      sourceUrls: [],
-      domainIndexUrl: domainUrl,
-      timestamp: new Date().toISOString(),
-      success: false,
-      serverLabel: 'No streams found'
-    }];
-
-  } catch (error) {
-    console.error(`Error deep scraping page ${pageUrl}:`, error.message);
-    return [{
-      scrapedUrl: pageUrl,
-      sourceUrls: [],
-      domainIndexUrl: domainUrl,
-      timestamp: new Date().toISOString(),
-      success: false,
-      error: error.message
-    }];
   }
-}
 
   /**
    * Scrape a single page for m3u8 URLs (legacy method)
    */
   async scrapePage(pageUrl, domainUrl) {
-  try {
-    const html = await this.fetchPage(pageUrl);
-    const m3u8URLs = this.extractM3U8URLs(html, pageUrl);
-    const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
-    m3u8URLs.push(...obfuscatedM3U8s);
+    try {
+      const html = await this.fetchPage(pageUrl);
+      const m3u8URLs = this.extractM3U8URLs(html, pageUrl);
+      const obfuscatedM3U8s = this.extractObfuscatedM3U8(html);
+      m3u8URLs.push(...obfuscatedM3U8s);
 
-    return {
-      scrapedUrl: pageUrl,
-      sourceUrls: [...new Set(m3u8URLs)],
-      domainIndexUrl: domainUrl,
-      timestamp: new Date().toISOString(),
-      success: m3u8URLs.length > 0,
-    };
-  } catch (error) {
-    console.error(`Error scraping page ${pageUrl}:`, error.message);
-    return {
-      scrapedUrl: pageUrl,
-      sourceUrls: [],
-      domainIndexUrl: domainUrl,
-      timestamp: new Date().toISOString(),
-      success: false,
-      error: error.message,
-    };
+      return {
+        scrapedUrl: pageUrl,
+        sourceUrls: [...new Set(m3u8URLs)],
+        domainIndexUrl: domainUrl,
+        timestamp: new Date().toISOString(),
+        success: m3u8URLs.length > 0,
+      };
+    } catch (error) {
+      console.error(`Error scraping page ${pageUrl}:`, error.message);
+      return {
+        scrapedUrl: pageUrl,
+        sourceUrls: [],
+        domainIndexUrl: domainUrl,
+        timestamp: new Date().toISOString(),
+        success: false,
+        error: error.message,
+      };
+    }
   }
-}
 
   /**
    * Scrape multiple domains with keywords
    */
   async scrapeDomainsWithKeywords(domains, keywords, onProgress) {
-  const results = [];
-  let processed = 0;
+    const results = [];
+    let processed = 0;
 
-  for (const domain of domains) {
-    try {
-      // Ensure domain has protocol
-      const domainUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+    for (const domain of domains) {
+      try {
+        // Ensure domain has protocol
+        const domainUrl = domain.startsWith('http') ? domain : `https://${domain}`;
 
-      // Find pages with keywords
-      const pages = await this.findPagesWithKeywords(domainUrl, keywords);
+        // Find pages with keywords
+        const pages = await this.findPagesWithKeywords(domainUrl, keywords);
 
-      if (pages.length === 0) {
-        // If no pages found, try homepage
-        pages.push(domainUrl);
-      }
-
-      // Collect all team names and detect sport from found pages
-      const allTeamNames = new Set();
-      const matchPages = []; // Store match pages for team tag extraction
-      let detectedSport = 'soccer'; // default
-
-      // Deep scrape each found page
-      for (const pageUrl of pages.slice(0, 5)) { // Increased to 5 pages per domain
-        // Extract team names from this page
-        const teamNames = this.extractTeamNames(pageUrl);
-        teamNames.forEach(team => allTeamNames.add(team));
-
-        // Store match page for later team tag extraction
-        if (teamNames.length > 0) {
-          matchPages.push(pageUrl);
+        if (pages.length === 0) {
+          // If no pages found, try homepage
+          pages.push(domainUrl);
         }
 
-        // Detect sport from URL (e.g., /serie-a/, /nba/, /nfl/)
-        const sportMatch = pageUrl.match(/\/(serie-a|premier-league|la-liga|bundesliga|ligue-1|nba|nfl|nhl|mma|boxing|tennis|f1|soccer|football|basketball|baseball|hockey)/i);
-        if (sportMatch) {
-          detectedSport = sportMatch[1].toLowerCase();
+        // Collect all team names and detect sport from found pages
+        const allTeamNames = new Set();
+        const matchPages = []; // Store match pages for team tag extraction
+        let detectedSport = 'soccer'; // default
+
+        // Deep scrape each found page
+        for (const pageUrl of pages.slice(0, 5)) { // Increased to 5 pages per domain
+          // Extract team names from this page
+          const teamNames = this.extractTeamNames(pageUrl);
+          teamNames.forEach(team => allTeamNames.add(team));
+
+          // Store match page for later team tag extraction
+          if (teamNames.length > 0) {
+            matchPages.push(pageUrl);
+          }
+
+          // Detect sport from URL (e.g., /serie-a/, /nba/, /nfl/)
+          const sportMatch = pageUrl.match(/\/(serie-a|premier-league|la-liga|bundesliga|ligue-1|nba|nfl|nhl|mma|boxing|tennis|f1|soccer|football|basketball|baseball|hockey)/i);
+          if (sportMatch) {
+            detectedSport = sportMatch[1].toLowerCase();
+          }
+
+          const pageResults = await this.deepScrapePage(pageUrl, domainUrl);
+          results.push(...pageResults);
+
+          if (onProgress) {
+            processed++;
+            const totalFound = pageResults.reduce((sum, r) => sum + r.sourceUrls.length, 0);
+            onProgress({
+              processed,
+              total: domains.length,
+              currentDomain: domain,
+              currentPage: pageUrl,
+              found: totalFound,
+            });
+          }
+
+          await this.delay(this.requestDelay);
         }
 
-        const pageResults = await this.deepScrapePage(pageUrl, domainUrl);
-        results.push(...pageResults);
+        // NEW: Extract team-specific tag pages from match pages
+        if (allTeamNames.size > 0 && matchPages.length > 0) {
+          console.log(`\nDiscovered ${allTeamNames.size} teams from ${matchPages.length} match pages`);
+          console.log(`Extracting team tag links from match pages...`);
 
+          const allTeamPages = new Set();
+
+          // Extract team tag links from each match page
+          for (const matchPage of matchPages) {
+            const teamNames = this.extractTeamNames(matchPage);
+            const teamPagesFromMatch = await this.findTeamTagPagesFromMatchPage(matchPage, teamNames, keywords);
+            teamPagesFromMatch.forEach(url => allTeamPages.add(url));
+          }
+
+          const teamPages = Array.from(allTeamPages);
+
+          if (teamPages.length > 0) {
+            console.log(`Found ${teamPages.length} team-specific tag pages from match pages`);
+
+            // Deduplicate: remove team pages that were already scraped as match pages
+            const scrapedUrls = new Set(results.map(r => r.scrapedUrl));
+            const uniqueTeamPages = teamPages.filter(url => !scrapedUrls.has(url));
+
+            console.log(`After deduplication: ${uniqueTeamPages.length} unique team pages to scrape`);
+
+            for (const teamPageUrl of uniqueTeamPages) {
+              const teamPageResults = await this.deepScrapePage(teamPageUrl, domainUrl);
+
+              // Add team page results (avoid duplicates by URL)
+              teamPageResults.forEach(result => {
+                const isDuplicate = results.some(r => r.scrapedUrl === result.scrapedUrl);
+                if (!isDuplicate) {
+                  results.push(result);
+                }
+              });
+
+              if (onProgress) {
+                processed++;
+                const totalFound = teamPageResults.reduce((sum, r) => sum + r.sourceUrls.length, 0);
+                onProgress({
+                  processed,
+                  total: domains.length,
+                  currentDomain: domain,
+                  currentPage: teamPageUrl,
+                  found: totalFound,
+                });
+              }
+
+              await this.delay(this.requestDelay);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing domain ${domain}:`, error.message);
         if (onProgress) {
           processed++;
-          const totalFound = pageResults.reduce((sum, r) => sum + r.sourceUrls.length, 0);
           onProgress({
             processed,
             total: domains.length,
             currentDomain: domain,
-            currentPage: pageUrl,
-            found: totalFound,
+            error: error.message,
           });
         }
-
-        await this.delay(this.requestDelay);
-      }
-
-      // NEW: Extract team-specific tag pages from match pages
-      if (allTeamNames.size > 0 && matchPages.length > 0) {
-        console.log(`\nDiscovered ${allTeamNames.size} teams from ${matchPages.length} match pages`);
-        console.log(`Extracting team tag links from match pages...`);
-
-        const allTeamPages = new Set();
-
-        // Extract team tag links from each match page
-        for (const matchPage of matchPages) {
-          const teamNames = this.extractTeamNames(matchPage);
-          const teamPagesFromMatch = await this.findTeamTagPagesFromMatchPage(matchPage, teamNames, keywords);
-          teamPagesFromMatch.forEach(url => allTeamPages.add(url));
-        }
-
-        const teamPages = Array.from(allTeamPages);
-
-        if (teamPages.length > 0) {
-          console.log(`Found ${teamPages.length} team-specific tag pages from match pages`);
-
-          // Deduplicate: remove team pages that were already scraped as match pages
-          const scrapedUrls = new Set(results.map(r => r.scrapedUrl));
-          const uniqueTeamPages = teamPages.filter(url => !scrapedUrls.has(url));
-
-          console.log(`After deduplication: ${uniqueTeamPages.length} unique team pages to scrape`);
-
-          for (const teamPageUrl of uniqueTeamPages) {
-            const teamPageResults = await this.deepScrapePage(teamPageUrl, domainUrl);
-
-            // Add team page results (avoid duplicates by URL)
-            teamPageResults.forEach(result => {
-              const isDuplicate = results.some(r => r.scrapedUrl === result.scrapedUrl);
-              if (!isDuplicate) {
-                results.push(result);
-              }
-            });
-
-            if (onProgress) {
-              processed++;
-              const totalFound = teamPageResults.reduce((sum, r) => sum + r.sourceUrls.length, 0);
-              onProgress({
-                processed,
-                total: domains.length,
-                currentDomain: domain,
-                currentPage: teamPageUrl,
-                found: totalFound,
-              });
-            }
-
-            await this.delay(this.requestDelay);
-          }
-        }
-      }
-    } catch (error) {
-      console.error(`Error processing domain ${domain}:`, error.message);
-      if (onProgress) {
-        processed++;
-        onProgress({
-          processed,
-          total: domains.length,
-          currentDomain: domain,
-          error: error.message,
-        });
       }
     }
+
+    // Close browser if opened
+    await this.closeBrowser();
+
+    return results;
   }
-
-  // Close browser if opened
-  await this.closeBrowser();
-
-  return results;
-}
 
   /**
    * Verify if a URL is a valid m3u8 stream
    */
   async verifyM3U8(url) {
-  try {
-    const config = this.getAxiosConfig(url);
-    const response = await axios.head(url, config);
+    try {
+      const config = this.getAxiosConfig(url);
+      const response = await axios.head(url, config);
 
-    const contentType = response.headers['content-type'] || '';
-    return contentType.includes('mpegurl') ||
-      contentType.includes('m3u8') ||
-      url.endsWith('.m3u8');
-  } catch (error) {
-    return false;
+      const contentType = response.headers['content-type'] || '';
+      return contentType.includes('mpegurl') ||
+        contentType.includes('m3u8') ||
+        url.endsWith('.m3u8');
+    } catch (error) {
+      return false;
+    }
   }
-}
 }
 
 module.exports = ScraperCore;
