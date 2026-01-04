@@ -1083,6 +1083,100 @@ class ScraperCore {
   }
 
   /**
+   * Scrape page  /**
+   * Deep extract iframes with NETWORK INTERCEPTION
+   * Captures M3U8 URLs from network traffic while loading pages
+   */
+  async deepExtractIframes(url, depth = 0, maxDepth = 3) {
+    const m3u8Urls = new Set();
+    const networkCapturedUrls = new Set();
+
+    if (depth > maxDepth) {
+      return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: [] };
+    }
+
+    try {
+      const browser = await this.initBrowser();
+      if (!browser) {
+        console.log('Browser not available, skipping deep iframe extraction');
+        return { m3u8Urls: [], networkCaptured: [] };
+      }
+
+      const page = await browser.newPage();
+
+      // NETWORK INTERCEPTION: Capture M3U8 URLs from network requests
+      page.on('request', request => {
+        const requestUrl = request.url();
+        if (requestUrl.includes('.m3u8') || requestUrl.includes('m3u8')) {
+          console.log(`🌐 Network captured M3U8: ${requestUrl}`);
+          networkCapturedUrls.add(requestUrl);
+          m3u8Urls.add(requestUrl);
+        }
+      });
+
+      page.on('response', async response => {
+        const responseUrl = response.url();
+        if (responseUrl.includes('.m3u8') || responseUrl.includes('m3u8')) {
+          console.log(`🌐 Network response M3U8: ${responseUrl}`);
+          networkCapturedUrls.add(responseUrl);
+          m3u8Urls.add(responseUrl);
+        }
+      });
+
+      // Set longer timeout for network requests to complete
+      await page.goto(url, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+      }).catch(e => console.log('Page load timeout, continuing...'));
+
+      // Wait a bit for any delayed network requests
+      await this.delay(2000);
+
+      // Get page content for traditional extraction
+      const html = await page.content();
+      const $ = cheerio.load(html);
+
+      // Traditional M3U8 extraction from HTML
+      const htmlM3u8s = this.extractM3U8URLs(html, url); // Changed to use existing method
+      htmlM3u8s.forEach(url => m3u8Urls.add(url));
+
+      // Extract iframes for recursive checking
+      const iframes = [];
+      $('iframe').each((i, elem) => {
+        const src = $(elem).attr('src');
+        if (src) {
+          try {
+            const iframeUrl = src.startsWith('http') ? src : new URL(src, url).href;
+            iframes.push(iframeUrl);
+          } catch (e) {
+            // Invalid URL
+          }
+        }
+      });
+
+      await page.close();
+
+      // Recursively check iframes
+      for (const iframeUrl of iframes.slice(0, 5)) {
+        console.log(`  ${'  '.repeat(depth)}→ Checking iframe (depth ${depth + 1}): ${iframeUrl.substring(0, 60)}...`);
+        const iframeResult = await this.deepExtractIframes(iframeUrl, depth + 1, maxDepth);
+        iframeResult.m3u8Urls.forEach(url => m3u8Urls.add(url));
+        iframeResult.networkCaptured.forEach(url => networkCapturedUrls.add(url));
+        await this.delay(500);
+      }
+
+      return {
+        m3u8Urls: Array.from(m3u8Urls),
+        networkCaptured: Array.from(networkCapturedUrls)
+      };
+
+    } catch (error) {
+      console.error(`Error in deep iframe extraction for ${url}:`, error.message);
+      return { m3u8Urls: Array.from(m3u8Urls), networkCaptured: Array.from(networkCapturedUrls) };
+    }
+  }
+
+  /**
    * Scrape page with Puppeteer network interception to catch M3U8 URLs
    * This captures URLs loaded dynamically via JavaScript
    */
