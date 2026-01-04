@@ -685,15 +685,6 @@ function startProgressPolling() {
     }, 2000); // Poll every 2 seconds
 }
 
-if (data.success) {
-    state.results = data.results;
-    renderResults();
-}
-    } catch (error) {
-    console.error('Error loading results:', error);
-    showNotification('Failed to load results', 'error');
-}
-}
 
 function renderResults() {
     if (state.results.length === 0) {
