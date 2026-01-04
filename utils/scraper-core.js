@@ -64,30 +64,52 @@ class ScraperCore {
   }
 
   /**
-   * Initialize headless browser for advanced scraping
+   * Initialize Puppeteer browser with Vercel compatibility
    */
   async initBrowser() {
-    if (!this.browser && this.useHeadlessBrowser) {
-      const launchOptions = {
+    if (this.browser) {
+      return this.browser;
+    }
+
+    try {
+      let puppeteer;
+      let launchOptions = {
         headless: 'new',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          '--disable-blink-features=AutomationControlled',
-          '--disable-features=IsolateOrigins,site-per-process'
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-gpu',
+          '--window-size=1920x1080'
         ]
       };
 
-      // Add proxy to browser if available
-      const proxy = this.getNextProxy();
-      if (proxy) {
-        const proxyUrl = new URL(proxy);
-        launchOptions.args.push(`--proxy-server=${proxyUrl.protocol}//${proxyUrl.host}`);
+      // Check if running on Vercel (serverless environment)
+      if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+        // Use puppeteer-core with chromium for serverless
+        try {
+          puppeteer = require('puppeteer-core');
+          const chromium = require('@sparticuz/chromium');
+
+          launchOptions.executablePath = await chromium.executablePath();
+          launchOptions.args = chromium.args;
+        } catch (e) {
+          console.log('Chromium not available, falling back to regular puppeteer');
+          puppeteer = require('puppeteer');
+        }
+      } else {
+        // Use regular puppeteer for local development
+        puppeteer = require('puppeteer');
       }
 
       this.browser = await puppeteer.launch(launchOptions);
+      return this.browser;
+    } catch (error) {
+      console.error('Error initializing browser:', error.message);
+      this.useHeadlessBrowser = false; // Disable browser if it fails
+      return null;
     }
-    return this.browser;
   }
 
   /**
