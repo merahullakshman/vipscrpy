@@ -648,14 +648,51 @@ async function loadResults() {
         const response = await fetch(`${API_BASE}/scraper?action=results`);
         const data = await response.json();
 
-        if (data.success) {
+        if (data.success && data.results) {
             state.results = data.results;
             renderResults();
         }
     } catch (error) {
         console.error('Error loading results:', error);
-        showNotification('Failed to load results', 'error');
     }
+}
+
+function startProgressPolling() {
+    if (progressInterval) clearInterval(progressInterval);
+
+    progressInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`${API_BASE}/scraper?action=status`);
+            const data = await response.json();
+
+            if (!data.inProgress) {
+                clearInterval(progressInterval);
+                state.scrapingInProgress = false;
+                updateUI();
+                await loadResults(); // Final load
+                showNotification('Scraping completed', 'success');
+                return;
+            }
+
+            updateProgress(data.progress);
+
+            // REAL-TIME: Load results while scraping is in progress
+            await loadResults();
+
+        } catch (error) {
+            console.error('Error polling progress:', error);
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+if (data.success) {
+    state.results = data.results;
+    renderResults();
+}
+    } catch (error) {
+    console.error('Error loading results:', error);
+    showNotification('Failed to load results', 'error');
+}
 }
 
 function renderResults() {
