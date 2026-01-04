@@ -595,31 +595,26 @@ class ScraperCore {
           const title = $(elem).attr('title') || '';
 
           // Combine text sources for matching
-          const combinedText = `${linkText} ${title}`.toLowerCase();
+          const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
 
-          // STRICT: Only add links that match keywords
-          if (this.matchesKeywords(combinedText, keywords)) {
-            // Additional filters for streaming links
-            const isStreamLink =
-              href.includes('stream') ||
-              href.includes('watch') ||
-              href.includes('live') ||
-              href.includes('event') ||
-              combinedText.includes('vs') ||
-              combinedText.includes('live');
+          // EXTREMELY STRICT: ALL keywords must be present in the link
+          const allKeywordsMatch = keywords.every(keyword => {
+            const keywordLower = keyword.toLowerCase().trim();
+            return combinedText.includes(keywordLower);
+          });
 
-            if (isStreamLink && href) {
-              try {
-                const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
+          // Only add if ALL keywords match
+          if (allKeywordsMatch && href) {
+            try {
+              const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
 
-                // Only add if it's from the same domain
-                if (fullUrl.startsWith(domain)) {
-                  links.add(fullUrl);
-                  console.log(`✓ Found matching link: ${linkText.substring(0, 50)}...`);
-                }
-              } catch (e) {
-                // Invalid URL, skip
+              // Only add if it's from the same domain
+              if (fullUrl.startsWith(domain)) {
+                links.add(fullUrl);
+                console.log(`✓ STRICT MATCH: ${linkText.substring(0, 60)}... [${href.substring(0, 80)}]`);
               }
+            } catch (e) {
+              // Invalid URL, skip
             }
           }
         });
