@@ -382,45 +382,47 @@ class ScraperCore {
   async findTeamTagPagesFromMatchPage(matchPageUrl, teamNames) {
     const teamPages = [];
 
-    if (!teamNames || teamNames.length === 0) {
-      return teamPages;
-    }
+   * Find team tag pages from a match page URL
+      * NOW WITH STRICT KEYWORD FILTERING
+        */
+  async findTeamTagPagesFromMatchPage(matchPageUrl, teamNames, keywords = []) {
+      const teamTagPages = [];
 
-    try {
-      console.log(`Extracting team tag links from match page: ${matchPageUrl}`);
+      try {
+        const html = await this.fetchPage(matchPageUrl);
+        if (!html) return teamTagPages;
 
-      // Fetch the match page
-      const html = await this.fetchPage(matchPageUrl);
-      if (!html) return teamPages;
+        const $ = cheerio.load(html);
 
-      const $ = cheerio.load(html);
+        // Find links that might be team tag pages
+        $('a[href]').each((i, elem) => {
+          const href = $(elem).attr('href');
+          const linkText = $(elem).text().trim().toLowerCase();
+          const title = $(elem).attr('title') || '';
 
-      // Find all links on the match page
-      $('a[href]').each((i, elem) => {
-        const href = $(elem).attr('href');
-        const linkText = $(elem).text().toLowerCase().trim();
+          // KEYWORD FILTERING: If keywords provided, check if link matches
+          if (keywords.length > 0) {
+            const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
+            const hasKeywordMatch = keywords.some(keyword => {
+              const keywordLower = keyword.toLowerCase().trim();
+              return combinedText.includes(keywordLower);
+            });
 
-        if (!href) return;
+            // Skip this link if no keyword match
+            if (!hasKeywordMatch) {
+              return; // Continue to next link
+            }
+          }
 
-        // Check if this link is for one of our teams
-        const isTeamLink = teamNames.some(teamName => {
-          const teamLower = teamName.toLowerCase();
-          // Link href or text should contain the team name
-          return (href.toLowerCase().includes(teamName) || linkText.includes(teamLower)) &&
-            // Should be a stream/live link
-            (href.includes('stream') || href.includes('live')) &&
-            // Should NOT be the match page itself (no "vs" in it)
-            !href.includes('-vs-') && !href.includes(' vs ');
-        });
+          // Check if this looks like a team tag page
+          const isTeamTagPage = teamNames.some(team => {
+            const teamLower = team.toLowerCase();
+            return linkText.includes(teamLower) || href.toLowerCase().includes(teamLower);
+          });
 
-        if (isTeamLink) {
-          try {
-            const fullUrl = href.startsWith('http') ? href : new URL(href, matchPageUrl).href;
-
-            // Only add if from same domain and not already added
-            const matchDomain = new URL(matchPageUrl).origin;
-            if (fullUrl.startsWith(matchDomain) && !teamPages.includes(fullUrl)) {
-              teamPages.push(fullUrl);
+          if (isTeamTagPage && href) {
+            try {
+              const fullUrl = href.startsWith('http') ? href : new URL(href, matchPageUrl).href;
               console.log(`✓ Found team tag link: ${fullUrl}`);
             }
           } catch (e) {
@@ -1548,7 +1550,7 @@ class ScraperCore {
           // Extract team tag links from each match page
           for (const matchPage of matchPages) {
             const teamNames = this.extractTeamNames(matchPage);
-            const teamPagesFromMatch = await this.findTeamTagPagesFromMatchPage(matchPage, teamNames);
+            const teamPagesFromMatch = await this.findTeamTagPagesFromMatchPage(matchPage, teamNames, keywords);
             teamPagesFromMatch.forEach(url => allTeamPages.add(url));
           }
 
