@@ -28,6 +28,10 @@ const elements = {
     addBulkDomainsBtn: document.getElementById('addBulkDomainsBtn'),
     clearBulkInputBtn: document.getElementById('clearBulkInputBtn'),
 
+    // Match input elements
+    matchInput: document.getElementById('matchInput'),
+    generateKeywordsBtn: document.getElementById('generateKeywordsBtn'),
+
     keywordsInput: document.getElementById('keywordsInput'),
     startScrapingBtn: document.getElementById('startScrapingBtn'),
     stopScrapingBtn: document.getElementById('stopScrapingBtn'),
@@ -87,6 +91,9 @@ function setupEventListeners() {
     elements.clearBulkInputBtn.addEventListener('click', () => {
         elements.bulkDomainInput.value = '';
     });
+
+    // Match input handler
+    elements.generateKeywordsBtn.addEventListener('click', generateKeywordsFromMatches);
 
     // Scraping Controls
     elements.startScrapingBtn.addEventListener('click', startScraping);
@@ -270,6 +277,60 @@ async function addBulkDomains() {
         console.error('Error adding bulk domains:', error);
         showNotification('Failed to add domains', 'error');
     }
+}
+
+
+// Generate keywords from match names
+function generateKeywordsFromMatches() {
+    const matchText = elements.matchInput.value.trim();
+
+    if (!matchText) {
+        showNotification('Please enter at least one match name', 'error');
+        return;
+    }
+
+    // Split by newlines and filter out empty lines
+    const matches = matchText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+    if (matches.length === 0) {
+        showNotification('No valid matches found', 'error');
+        return;
+    }
+
+    const allKeywords = new Set();
+
+    // Parse each match and generate keywords
+    matches.forEach(match => {
+        // Split by "vs" or "v" (case insensitive)
+        const teams = match.split(/\s+(?:vs?\.?|versus)\s+/i);
+
+        if (teams.length === 2) {
+            const team1 = teams[0].trim();
+            const team2 = teams[1].trim();
+
+            // Add individual team names
+            allKeywords.add(team1);
+            allKeywords.add(team2);
+
+            // Add both teams together
+            allKeywords.add(`${team1} ${team2}`);
+
+            // Add full match name
+            allKeywords.add(match);
+        } else {
+            // If not in "Team A vs Team B" format, just add the whole line
+            allKeywords.add(match);
+        }
+    });
+
+    // Convert to comma-separated string and set in keywords input
+    const keywordsString = Array.from(allKeywords).join(', ');
+    elements.keywordsInput.value = keywordsString;
+
+    showNotification(`Generated ${allKeywords.size} keywords from ${matches.length} match(es)`, 'success');
 }
 
 

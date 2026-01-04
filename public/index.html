@@ -131,6 +131,21 @@
                 </div>
 
                 <div class="config-group">
+                    <label for="matchInput" class="label">Match Names (optional - one per line)</label>
+                    <textarea id="matchInput"
+                        placeholder="Fiorentina vs Cremonese&#10;Sevilla vs Levante&#10;Manchester City vs Liverpool"
+                        class="textarea-field" rows="5"></textarea>
+                    <small class="help-text">Enter match names to auto-generate keywords from team names. Format: "Team
+                        A vs Team B"</small>
+                    <button class="btn btn-secondary" id="generateKeywordsBtn" style="margin-top: 8px;">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                        Generate Keywords from Matches
+                    </button>
+                </div>
+
+                <div class="config-group">
                     <label for="keywordsInput" class="label">Keywords (comma-separated, optional)</label>
                     <input type="text" id="keywordsInput"
                         placeholder="e.g., live, stream, watch, video (leave empty to discover all events)"
