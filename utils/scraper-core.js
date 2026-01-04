@@ -597,21 +597,21 @@ class ScraperCore {
           // Combine text sources for matching
           const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
 
-          // EXTREMELY STRICT: ALL keywords must be present in the link
-          const allKeywordsMatch = keywords.every(keyword => {
+          // STRICT: Match if ANY keyword is present (not all)
+          const hasKeywordMatch = keywords.some(keyword => {
             const keywordLower = keyword.toLowerCase().trim();
             return combinedText.includes(keywordLower);
           });
 
-          // Only add if ALL keywords match
-          if (allKeywordsMatch && href) {
+          // Only add if at least one keyword matches
+          if (hasKeywordMatch && href) {
             try {
               const fullUrl = href.startsWith('http') ? href : new URL(href, domain).href;
 
               // Only add if it's from the same domain
               if (fullUrl.startsWith(domain)) {
                 links.add(fullUrl);
-                console.log(`✓ STRICT MATCH: ${linkText.substring(0, 60)}... [${href.substring(0, 80)}]`);
+                console.log(`✓ MATCH: ${linkText.substring(0, 60)}... [${href.substring(0, 80)}]`);
               }
             } catch (e) {
               // Invalid URL, skip
