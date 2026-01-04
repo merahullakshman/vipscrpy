@@ -424,11 +424,12 @@ class ScraperCore {
   /**
    * Find all event/match links on a domain (when no keywords provided)
    * Discovers all streaming event pages across common sport categories
+   * NOW WITH KEYWORD FILTERING
    */
-  async findAllEventLinks(domain) {
+  async findAllEventLinks(domain, keywords = []) {
     const eventLinks = new Set();
 
-    console.log(`Discovering all event links on ${domain}...`);
+    console.log(`Discovering event links on ${domain}${keywords.length > 0 ? ' with keyword filtering' : ''}...`);
 
     try {
       // Common sport categories to check
@@ -460,7 +461,20 @@ class ScraperCore {
           const href = $(elem).attr('href');
           const linkText = $(elem).text().trim();
           const title = $(elem).attr('title') || '';
-          const combinedText = `${linkText} ${title}`.toLowerCase();
+          const combinedText = `${href} ${linkText} ${title}`.toLowerCase();
+
+          // KEYWORD FILTERING: If keywords provided, check if link matches
+          if (keywords.length > 0) {
+            const hasKeywordMatch = keywords.some(keyword => {
+              const keywordLower = keyword.toLowerCase().trim();
+              return combinedText.includes(keywordLower);
+            });
+
+            // Skip this link if no keyword match
+            if (!hasKeywordMatch) {
+              return; // Continue to next link
+            }
+          }
 
           // Check if this looks like an event/match link
           const isEventLink =
@@ -481,6 +495,9 @@ class ScraperCore {
               // Only add if from same domain and not a category page
               if (fullUrl.startsWith(domain) && !this.isCategoryPage(fullUrl)) {
                 eventLinks.add(fullUrl);
+                if (keywords.length > 0) {
+                  console.log(`✓ KEYWORD MATCH: ${linkText.substring(0, 60)}...`);
+                }
               }
             } catch (e) {
               // Invalid URL
@@ -497,7 +514,7 @@ class ScraperCore {
         }
       }
 
-      console.log(`✓ Discovered ${eventLinks.size} event links`);
+      console.log(`✓ Discovered ${eventLinks.size} event links${keywords.length > 0 ? ' (keyword-filtered)' : ''}`);
       return Array.from(eventLinks);
 
     } catch (error) {
@@ -535,6 +552,9 @@ class ScraperCore {
       // If no keywords, discover all event links
       return await this.findAllEventLinks(domain);
     }
+
+    // WITH KEYWORDS: Pass them to findAllEventLinks for filtering
+    return await this.findAllEventLinks(domain, keywords);
 
     try {
       console.log(`Searching ${domain} for keywords: ${keywords.join(', ')}`);
