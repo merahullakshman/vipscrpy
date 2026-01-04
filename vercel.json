@@ -1,6 +1,11 @@
-```json
 {
     "version": 2,
+    "functions": {
+        "api/**/*.js": {
+            "memory": 1024,
+            "maxDuration": 60
+        }
+    },
     "routes": [
         {
             "src": "/api/(.*)",
@@ -13,11 +18,5 @@
     ],
     "env": {
         "NODE_ENV": "production"
-    },
-    "functions": {
-        "api/**/*.js": {
-            "memory": 1024,
-            "maxDuration": 60
-        }
     }
 }
