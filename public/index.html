@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Link Scraper - M3U8 Discovery Tool</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <rect width="32" height="32" rx="8" fill="url(#gradient1)" />
+                        <path d="M16 8L22 12V20L16 24L10 20V12L16 8Z" stroke="white" stroke-width="2"
+                            stroke-linejoin="round" />
+                        <defs>
+                            <linearGradient id="gradient1" x1="0" y1="0" x2="32" y2="32">
+                                <stop offset="0%" stop-color="#667eea" />
+                                <stop offset="100%" stop-color="#764ba2" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <h1>Streaming Link Scraper</h1>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Domains</span>
+                        <span class="stat-value" id="domainCount">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Results</span>
+                        <span class="stat-value" id="resultsCount">0</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Domain Management Section -->
+            <section class="card domain-section">
+                <div class="card-header">
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                                d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z" />
+                        </svg>
+                        Domain Management
+                    </h2>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-small" id="toggleInputModeBtn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
+                            Bulk Input
+                        </button>
+                        <button class="btn btn-secondary" id="googleSheetsBtn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path
+                                    d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1zm1 2v8h8V4H4z" />
+                            </svg>
+                            Load from Google Sheets
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Single Domain Input (Default) -->
+                <div class="domain-input-group" id="singleInputMode">
+                    <input type="text" id="domainInput" placeholder="Enter domain URL (e.g., https://example.com)"
+                        class="input-field">
+                    <button class="btn btn-primary" id="addDomainBtn">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        </svg>
+                        Add Domain
+                    </button>
+                </div>
+
+                <!-- Bulk Domain Input (Hidden by default) -->
+                <div class="domain-bulk-input" id="bulkInputMode" style="display: none;">
+                    <label for="bulkDomainInput" class="label">Paste domains (one per line)</label>
+                    <textarea id="bulkDomainInput"
+                        placeholder="https://example1.com&#10;https://example2.com&#10;https://example3.com"
+                        class="textarea-field" rows="8"></textarea>
+                    <div style="display: flex; gap: 8px; margin-top: 12px;">
+                        <button class="btn btn-primary" id="addBulkDomainsBtn">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="2"
+                                    stroke-linecap="round" />
+                            </svg>
+                            Add All Domains
+                        </button>
+                        <button class="btn btn-secondary" id="clearBulkInputBtn">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <div class="domain-list" id="domainList">
+                    <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <circle cx="24" cy="24" r="20" stroke="currentColor" stroke-width="2" opacity="0.3" />
+                            <path d="M24 14v20M14 24h20" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" />
+                        </svg>
+                        <p>No domains added yet</p>
+                        <small>Add domains manually, use bulk input, or load from Google Sheets</small>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Scraping Configuration Section -->
+            <section class="card scraping-section">
+                <div class="card-header">
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                                d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5z" />
+                        </svg>
+                        Scraping Configuration
+                    </h2>
+                </div>
+
+                <div class="config-group">
+                    <label for="keywordsInput" class="label">Keywords (comma-separated, optional)</label>
+                    <input type="text" id="keywordsInput"
+                        placeholder="e.g., live, stream, watch, video (leave empty to discover all events)"
+                        class="input-field">
+                    <small class="help-text">Enter keywords to search for specific matches, or leave empty to discover
+                        all events on the domain</small>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="btn btn-success btn-large" id="startScrapingBtn">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M6 4l10 6-10 6V4z" />
+                        </svg>
+                        Start Scraping
+                    </button>
+                    <button class="btn btn-danger btn-large" id="stopScrapingBtn" disabled>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <rect x="5" y="5" width="10" height="10" rx="1" />
+                        </svg>
+                        Stop
+                    </button>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-info">
+                        <span id="progressText">Initializing...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-details" id="progressDetails"></div>
+                </div>
+            </section>
+
+            <!-- Results Section -->
+            <section class="card results-section">
+                <div class="card-header">
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                                d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                        </svg>
+                        Scraping Results
+                    </h2>
+                    <div class="export-buttons">
+                        <button class="btn btn-secondary" id="exportCsvBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 12l-4-4h2.5V2h3v6H12l-4 4zM2 14h12v2H2v-2z" />
+                            </svg>
+                            Export CSV
+                        </button>
+                        <button class="btn btn-secondary" id="exportExcelBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M8 12l-4-4h2.5V2h3v6H12l-4 4zM2 14h12v2H2v-2z" />
+                            </svg>
+                            Export Excel
+                        </button>
+                        <button class="btn btn-secondary" id="syncSheetsBtn" disabled>
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M13.65 2.35A8 8 0 102.35 13.65 8 8 0 0013.65 2.35zM8 12V8m0-4h.01" />
+                            </svg>
+                            Sync to Google Sheets
+                        </button>
+                    </div>
+                </div>
+
+                <div class="results-container" id="resultsContainer">
+                    <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                            <rect x="8" y="12" width="32" height="24" rx="2" stroke="currentColor" stroke-width="2"
+                                opacity="0.3" />
+                            <path d="M12 18h24M12 24h24M12 30h16" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" opacity="0.3" />
+                        </svg>
+                        <p>No results yet</p>
+                        <small>Start scraping to see results here</small>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Google Sheets Modal -->
+        <div class="modal" id="googleSheetsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Load Domains from Google Sheets</h3>
+                    <button class="modal-close" id="closeModalBtn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="config-group">
+                        <label for="sheetIdInput" class="label">Google Sheet ID</label>
+                        <input type="text" id="sheetIdInput" placeholder="Enter your Google Sheet ID"
+                            class="input-field">
+                        <small class="help-text">Found in the URL:
+                            docs.google.com/spreadsheets/d/<strong>SHEET_ID</strong>/edit</small>
+                    </div>
+                    <div class="config-group">
+                        <label for="sheetRangeInput" class="label">Range (optional)</label>
+                        <input type="text" id="sheetRangeInput" placeholder="Sheet1!A:A" class="input-field"
+                            value="Sheet1!A:A">
+                        <small class="help-text">Column A should contain domain URLs</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
+                    <button class="btn btn-primary" id="loadSheetsBtn">Load Domains</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync to Sheets Modal -->
+        <div class="modal" id="syncSheetsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Sync Results to Google Sheets</h3>
+                    <button class="modal-close" id="closeSyncModalBtn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="config-group">
+                        <label for="syncSheetIdInput" class="label">Google Sheet ID</label>
+                        <input type="text" id="syncSheetIdInput" placeholder="Enter your Google Sheet ID"
+                            class="input-field">
+                    </div>
+                    <div class="config-group">
+                        <label for="syncSheetNameInput" class="label">Sheet Name</label>
+                        <input type="text" id="syncSheetNameInput" placeholder="Scraping Results" class="input-field"
+                            value="Scraping Results">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancelSyncModalBtn">Cancel</button>
+                    <button class="btn btn-primary" id="confirmSyncBtn">Sync Results</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

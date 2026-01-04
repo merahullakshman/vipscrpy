@@ -1,0 +1,33 @@
+{
+  "name": "streaming-link-scraper",
+  "version": "1.0.0",
+  "description": "Web scraper for streaming links with m3u8 sources",
+  "main": "api/scraper.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "test": "node test/scraper-test.js"
+  },
+  "keywords": [
+    "scraper",
+    "m3u8",
+    "streaming",
+    "google-sheets"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.18.2",
+    "googleapis": "^128.0.0",
+    "https-proxy-agent": "^7.0.6",
+    "puppeteer": "^21.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
