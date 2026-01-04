@@ -70,7 +70,7 @@ class ScraperCore {
   }
 
   /**
-   * Initialize Puppeteer browser with Vercel compatibility
+   * Initialize Puppeteer browser with ADVANCED ANTI-BOT EVASION
    */
   async initBrowser() {
     if (this.browser) {
@@ -87,17 +87,19 @@ class ScraperCore {
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--disable-gpu',
-          '--window-size=1920x1080'
+          '--window-size=1920x1080',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
         ]
       };
 
       // Check if running on Vercel (serverless environment)
       if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-        // Use puppeteer-core with chromium for serverless
         try {
           puppeteer = require('puppeteer-core');
           const chromium = require('@sparticuz/chromium');
-
           launchOptions.executablePath = await chromium.executablePath();
           launchOptions.args = chromium.args;
         } catch (e) {
@@ -105,16 +107,100 @@ class ScraperCore {
           puppeteer = require('puppeteer');
         }
       } else {
-        // Use regular puppeteer for local development
         puppeteer = require('puppeteer');
       }
 
       this.browser = await puppeteer.launch(launchOptions);
+
+      // Apply advanced anti-detection to all new pages
+      this.browser.on('targetcreated', async (target) => {
+        const page = await target.page();
+        if (page) {
+          await this.applyAntiDetection(page);
+        }
+      });
+
       return this.browser;
     } catch (error) {
       console.error('Error initializing browser:', error.message);
-      this.useHeadlessBrowser = false; // Disable browser if it fails
+      this.useHeadlessBrowser = false;
       return null;
+    }
+  }
+
+  /**
+   * Apply advanced anti-detection techniques to a page
+   */
+  async applyAntiDetection(page) {
+    try {
+      // Override navigator.webdriver
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined
+        });
+      });
+
+      // Spoof canvas fingerprinting
+      await page.evaluateOnNewDocument(() => {
+        const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+        HTMLCanvasElement.prototype.toDataURL = function (type) {
+          if (type === 'image/png' && this.width === 0 && this.height === 0) {
+            return originalToDataURL.apply(this, arguments);
+          }
+          return originalToDataURL.apply(this, arguments);
+        };
+      });
+
+      // Spoof WebGL fingerprinting
+      await page.evaluateOnNewDocument(() => {
+        const getParameter = WebGLRenderingContext.prototype.getParameter;
+        WebGLRenderingContext.prototype.getParameter = function (parameter) {
+          if (parameter === 37445) {
+            return 'Intel Inc.';
+          }
+          if (parameter === 37446) {
+            return 'Intel Iris OpenGL Engine';
+          }
+          return getParameter.apply(this, arguments);
+        };
+      });
+
+      // Randomize timezone
+      await page.evaluateOnNewDocument(() => {
+        const timezones = ['America/New_York', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris'];
+        const randomTz = timezones[Math.floor(Math.random() * timezones.length)];
+        Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
+          value: function () {
+            return { timeZone: randomTz };
+          }
+        });
+      });
+
+      // Override permissions
+      await page.evaluateOnNewDocument(() => {
+        const originalQuery = window.navigator.permissions.query;
+        window.navigator.permissions.query = (parameters) => (
+          parameters.name === 'notifications' ?
+            Promise.resolve({ state: Notification.permission }) :
+            originalQuery(parameters)
+        );
+      });
+
+      // Add realistic navigator properties
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'platform', {
+          get: () => 'Win32'
+        });
+        Object.defineProperty(navigator, 'plugins', {
+          get: () => [1, 2, 3, 4, 5]
+        });
+        Object.defineProperty(navigator, 'languages', {
+          get: () => ['en-US', 'en']
+        });
+      });
+
+    } catch (error) {
+      console.error('Error applying anti-detection:', error.message);
     }
   }
 
