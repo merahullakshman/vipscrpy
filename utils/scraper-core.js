@@ -1,7 +1,13 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
-const puppeteer = require('puppeteer');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const AdblockerPlugin = require('puppeteer-extra-plugin-adblocker');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+
+// Add stealth plugin to evade detection
+puppeteerExtra.use(StealthPlugin());
+puppeteerExtra.use(AdblockerPlugin({ blockTrackers: true }));
 
 /**
  * Core scraping utilities for finding m3u8 streaming URLs
