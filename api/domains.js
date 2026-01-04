@@ -108,20 +108,21 @@ module.exports = async (req, res) => {
         }
     }
 
-    // DELETE: Remove domain
+    // DELETE: Remove domain or clear all
     if (req.method === 'DELETE') {
         const { domain } = req.body;
 
-        if (!domain) {
-            return res.status(400).json({
-                success: false,
-                error: 'Domain is required'
-            });
-        }
-
         try {
             let domains = await loadDomains();
-            domains = domains.filter(d => d !== domain);
+
+            if (!domain) {
+                // Clear all domains if no specific domain provided
+                domains = [];
+            } else {
+                // Remove specific domain
+                domains = domains.filter(d => d !== domain);
+            }
+
             await saveDomains(domains);
 
             return res.json({
